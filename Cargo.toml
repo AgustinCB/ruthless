@@ -5,4 +5,5 @@ authors = ["Agustin Chiappe Berrini <agustin@auvik.com>"]
 edition = "2018"
 
 [dependencies]
+failure = "0.1.5"
 libc = "0.2.50"
