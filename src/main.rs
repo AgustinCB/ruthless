@@ -2,9 +2,11 @@
 extern crate failure;
 
 use failure::Error;
-use libc::{c_int, chroot, clone, mount, umount, waitpid, CLONE_NEWPID, CLONE_NEWUTS, SIGCHLD};
+use libc::{c_int, chroot, clone, close, getuid, mount, pipe, read, umount, waitpid, write as cwrite,
+           CLONE_NEWPID, CLONE_NEWUTS, CLONE_NEWUSER, SIGCHLD};
 use std::env::args;
 use std::ffi::{CString, c_void};
+use std::fs::write;
 use std::process::{Command, exit};
 
 const USAGE: &'static str = "USAGE: ruthless [image] [command]";
@@ -18,6 +20,40 @@ enum RunError {
 
 struct RunArgs {
     args: Vec<String>,
+    pipes: [c_int; 2],
+}
+
+impl RunArgs {
+    fn new(args: Vec<String>) -> RunArgs {
+        let mut pipes = [0;2];
+        unsafe { pipe(pipes.as_mut_ptr()) };
+        RunArgs {
+            args,
+            pipes,
+        }
+    }
+
+    fn signal_child(&self) {
+        unsafe {
+            cwrite(self.pipes[1], vec![0].as_ptr() as *const c_void, 1);
+        }
+    }
+
+    fn wait_for_parent(&self) {
+        unsafe {
+            //close(self.pipes[1]);
+            read(self.pipes[0], std::ptr::null_mut(), 1);
+        };
+    }
+}
+
+impl Drop for RunArgs {
+    fn drop(&mut self) {
+        unsafe {
+            close(self.pipes[0]);
+            close(self.pipes[1]);
+        }
+    }
 }
 
 macro_rules! str_to_pointer {
@@ -59,6 +95,17 @@ fn change_root(location: &str) {
     }
 }
 
+fn set_user_map(id: c_int) -> Result<(), Error> {
+    let user_map_location = format!("/proc/{}/uid_map", id);
+    let content = format!("0 {} 1\n", unsafe { getuid() });
+    write(user_map_location, content)
+        .map(|_| ())
+        .map_err(|e| {
+            eprintln!("{}", e);
+            Error::from(e)
+        })
+}
+
 fn stack_memory() -> *mut c_void {
     let mut s: Vec<c_void> = Vec::with_capacity(STACK_SIZE);
     unsafe { s.as_mut_ptr().offset(STACK_SIZE as isize) }
@@ -66,6 +113,7 @@ fn stack_memory() -> *mut c_void {
 
 extern "C" fn run(args: *mut c_void) -> c_int {
     let run_args = unsafe { &mut *(args as *mut RunArgs) };
+    run_args.wait_for_parent();
     change_root("/home/agustin/projects/ruthless/root");
     let _proc_mount = Mount::new(
         "proc".to_owned(),
@@ -88,11 +136,18 @@ extern "C" fn run(args: *mut c_void) -> c_int {
 
 fn jail(args: Vec<String>) -> Result<c_int, Error> {
     let stack = stack_memory();
-    let mut run_args = RunArgs { args };
+    let mut run_args = RunArgs::new(args);
     let c_args: *mut c_void = &mut run_args as *mut _ as *mut c_void;
     let id = unsafe {
-        clone(run, stack, CLONE_NEWPID | CLONE_NEWUTS | SIGCHLD, c_args)
+        clone(
+            run,
+            stack,
+            CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWUSER | SIGCHLD,
+            c_args
+        )
     };
+    set_user_map(id)?;
+    run_args.signal_child();
     if id < 0 {
         Err(Error::from(RunError::ErrorExecutingCommand))
     } else {
