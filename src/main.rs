@@ -2,8 +2,8 @@
 extern crate failure;
 
 use failure::Error;
-use libc::{c_char, c_int, chroot, chdir, clone, waitpid, CLONE_NEWPID, CLONE_NEWUTS, SIGCHLD};
-use std::env::{args, remove_var, set_var, vars};
+use libc::{c_int, chroot, clone, mount, umount, waitpid, CLONE_NEWPID, CLONE_NEWUTS, SIGCHLD};
+use std::env::args;
 use std::ffi::{CString, c_void};
 use std::process::{Command, exit};
 
@@ -20,23 +20,42 @@ struct RunArgs {
     args: Vec<String>,
 }
 
-fn clear_environment() {
-    for (k, _) in vars() {
-        remove_var(k);
-    }
-    set_var("PATH", "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin");
-}
-
 macro_rules! str_to_pointer {
     ($str:expr) => {
         CString::from_vec_unchecked($str.as_bytes().to_vec()).as_ptr()
     }
 }
 
+struct Mount {
+    target: String,
+}
+
+impl Mount {
+    fn new(resource: String, target: String, fs_type: String) -> Mount {
+        unsafe {
+            mount(
+                str_to_pointer!(resource),
+                str_to_pointer!(target),
+                str_to_pointer!(fs_type),
+                0,
+                std::ptr::null(),
+            )
+        };
+        Mount { target }
+    }
+}
+
+impl Drop for Mount {
+    fn drop(&mut self) {
+        unsafe {
+            umount(str_to_pointer!(self.target));
+        }
+    }
+}
+
 fn change_root(location: &str) {
     unsafe {
         chroot(str_to_pointer!(location));
-        chdir(str_to_pointer!("/"));
     }
 }
 
@@ -47,10 +66,19 @@ fn stack_memory() -> *mut c_void {
 
 extern "C" fn run(args: *mut c_void) -> c_int {
     let run_args = unsafe { &mut *(args as *mut RunArgs) };
-    clear_environment();
     change_root("/home/agustin/projects/ruthless/root");
+    let _proc_mount = Mount::new(
+        "proc".to_owned(),
+        "/proc".to_owned(),
+        "proc".to_owned(),
+    );
     Command::new(run_args.args[0].clone())
         .args(run_args.args[1..].into_iter())
+        .env_clear()
+        .envs(
+            vec![("PATH", "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin")].into_iter()
+        )
+        .current_dir("/")
         .spawn()
         .expect("Command failed to start")
         .wait()
