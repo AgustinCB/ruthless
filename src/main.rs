@@ -20,15 +20,17 @@ enum RunError {
 
 struct RunArgs {
     args: Vec<String>,
+    image: String,
     pipes: [c_int; 2],
 }
 
 impl RunArgs {
-    fn new(args: Vec<String>) -> RunArgs {
+    fn new(args: Vec<String>, image: String) -> RunArgs {
         let mut pipes = [0;2];
         unsafe { pipe(pipes.as_mut_ptr()) };
         RunArgs {
             args,
+            image,
             pipes,
         }
     }
@@ -115,7 +117,7 @@ extern "C" fn run(args: *mut c_void) -> c_int {
     let run_args = unsafe { &mut *(args as *mut RunArgs) };
     run_args.wait_for_parent();
     unsafe { setuid(0) };
-    change_root("/home/agustin/projects/ruthless/root");
+    change_root(&run_args.image);
     let _proc_mount = Mount::new(
         "proc".to_owned(),
         "/proc".to_owned(),
@@ -135,9 +137,9 @@ extern "C" fn run(args: *mut c_void) -> c_int {
     0
 }
 
-fn jail(args: Vec<String>) -> Result<c_int, Error> {
+fn jail(args: Vec<String>, image: String) -> Result<c_int, Error> {
     let stack = stack_memory();
-    let mut run_args = RunArgs::new(args);
+    let mut run_args = RunArgs::new(args, image);
     let c_args: *mut c_void = &mut run_args as *mut _ as *mut c_void;
     let id = unsafe {
         clone(
@@ -167,7 +169,7 @@ fn main() {
     args.next();
     let image = args.next().unwrap();
 
-    let child_id = jail(args.collect()).unwrap();
+    let child_id = jail(args.collect(), image).unwrap();
     let r = unsafe {
         waitpid(child_id, std::ptr::null_mut(), 0)
     };
