@@ -7,7 +7,13 @@ use libc::{c_int, chroot, clone, close, getuid, mount, pipe, read, setuid, umoun
 use std::env::args;
 use std::ffi::{CString, c_void};
 use std::fs::write;
-use std::process::{Command, exit};
+use std::os::unix::process::CommandExt;
+use std::process::{Command, exit, id};
+use std::sync::Arc;
+
+mod cgroup;
+
+use cgroup::Cgroup;
 
 const USAGE: &'static str = "USAGE: ruthless [image] [command]";
 const STACK_SIZE: usize = 65536;
@@ -123,6 +129,8 @@ extern "C" fn run(args: *mut c_void) -> c_int {
         "/proc".to_owned(),
         "proc".to_owned(),
     );
+    let p_cgroup = Arc::new(Cgroup::new().unwrap());
+    let cgroup = p_cgroup.clone();
     Command::new(run_args.args[0].clone())
         .args(run_args.args[1..].into_iter())
         .env_clear()
@@ -130,6 +138,11 @@ extern "C" fn run(args: *mut c_void) -> c_int {
             vec![("PATH", "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin")].into_iter()
         )
         .current_dir("/")
+        .before_exec(move || {
+            cgroup.add_pid(id()).unwrap();
+            cgroup.set_max_processes(4).unwrap();
+            Ok(())
+        })
         .spawn()
         .expect("Command failed to start")
         .wait()
