@@ -2,8 +2,8 @@
 extern crate failure;
 
 use failure::Error;
-use libc::{c_int, chroot, clone, close, getuid, mount, pipe, read, umount, waitpid, write as cwrite,
-           CLONE_NEWPID, CLONE_NEWUTS, CLONE_NEWUSER, SIGCHLD};
+use libc::{c_int, chroot, clone, close, getuid, mount, pipe, read, setuid, umount, waitpid,
+           write as cwrite, CLONE_NEWNS, CLONE_NEWPID, CLONE_NEWUTS, CLONE_NEWUSER, SIGCHLD};
 use std::env::args;
 use std::ffi::{CString, c_void};
 use std::fs::write;
@@ -114,6 +114,7 @@ fn stack_memory() -> *mut c_void {
 extern "C" fn run(args: *mut c_void) -> c_int {
     let run_args = unsafe { &mut *(args as *mut RunArgs) };
     run_args.wait_for_parent();
+    unsafe { setuid(0) };
     change_root("/home/agustin/projects/ruthless/root");
     let _proc_mount = Mount::new(
         "proc".to_owned(),
@@ -142,7 +143,7 @@ fn jail(args: Vec<String>) -> Result<c_int, Error> {
         clone(
             run,
             stack,
-            CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWUSER | SIGCHLD,
+            CLONE_NEWNS | CLONE_NEWPID | CLONE_NEWUTS | CLONE_NEWUSER | SIGCHLD,
             c_args
         )
     };
