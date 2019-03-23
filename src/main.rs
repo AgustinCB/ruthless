@@ -40,8 +40,6 @@ enum RunError {
     ErrorExecutingCommand,
     #[fail(display = "Error changing root directory: {}", errno)]
     ChrootError { errno: c_int },
-    #[fail(display = "Error getting the user id: {}", errno)]
-    GetuidError { errno: c_int },
 }
 
 fn change_root(location: &str) -> Result<(), Error> {
@@ -55,18 +53,13 @@ fn change_root(location: &str) -> Result<(), Error> {
     }
 }
 
-fn safe_getuid() -> Result<u32, Error> {
-    let res = unsafe { getuid() };
-    if res < 0 {
-        Err(Error::from(RunError::GetuidError { errno: get_errorno!() }))
-    } else {
-        Ok(res)
-    }
+fn safe_getuid() -> u32 {
+    unsafe { getuid() }
 }
 
 fn set_user_map(id: c_int) -> Result<(), Error> {
     let user_map_location = format!("/proc/{}/uid_map", id);
-    let content = format!("0 {} 1\n", safe_getuid()?);
+    let content = format!("0 {} 1\n", safe_getuid());
     write(user_map_location, content)
         .map(|_| ())
         .map_err(|e| {
@@ -90,8 +83,7 @@ extern "C" fn run(args: *mut c_void) -> c_int {
         "/proc".to_owned(),
         "proc".to_owned(),
     ).unwrap();
-    let p_cgroup = Arc::new(Cgroup::new().unwrap());
-    let cgroup = p_cgroup.clone();
+    let cgroup = run_args.cgroup.clone();
     Command::new(run_args.args[0].clone())
         .args(run_args.args[1..].into_iter())
         .env_clear()

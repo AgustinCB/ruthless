@@ -29,7 +29,7 @@ fn find_process_cgroup() -> Result<Option<String>, Error> {
     Ok(cgroup_content
         .split('\n')
         .find(|s| s.starts_with("0::"))
-        .map(|s| s.replace("0::", "").to_owned())
+        .map(|s| s.replace("0::/", "").to_owned())
     )
 }
 
