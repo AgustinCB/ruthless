@@ -2,8 +2,8 @@
 extern crate failure;
 
 use failure::Error;
-use libc::{c_int, chroot, clone, close, getuid, mount, pipe, read, setuid, umount, waitpid,
-           write as cwrite, CLONE_NEWNS, CLONE_NEWPID, CLONE_NEWUTS, CLONE_NEWUSER, SIGCHLD};
+use libc::{c_int, chroot, clone, getuid, setuid, waitpid, CLONE_NEWNS, CLONE_NEWPID, CLONE_NEWUTS,
+           CLONE_NEWUSER, SIGCHLD, __errno_location};
 use std::env::args;
 use std::ffi::{CString, c_void};
 use std::fs::write;
@@ -11,9 +11,25 @@ use std::os::unix::process::CommandExt;
 use std::process::{Command, exit, id};
 use std::sync::Arc;
 
+macro_rules! str_to_pointer {
+    ($str:expr) => {
+        CString::from_vec_unchecked($str.as_bytes().to_vec()).as_ptr()
+    }
+}
+
+macro_rules! get_errorno {
+    () => {
+        unsafe { *__errno_location() }
+    }
+}
+
 mod cgroup;
+mod mount;
+mod run_args;
 
 use cgroup::Cgroup;
+use mount::Mount;
+use run_args::RunArgs;
 
 const USAGE: &'static str = "USAGE: ruthless [image] [command]";
 const STACK_SIZE: usize = 65536;
@@ -22,90 +38,35 @@ const STACK_SIZE: usize = 65536;
 enum RunError {
     #[fail(display = "Error creating execution command")]
     ErrorExecutingCommand,
+    #[fail(display = "Error changing root directory: {}", errno)]
+    ChrootError { errno: c_int },
+    #[fail(display = "Error getting the user id: {}", errno)]
+    GetuidError { errno: c_int },
 }
 
-struct RunArgs {
-    args: Vec<String>,
-    image: String,
-    pipes: [c_int; 2],
-}
-
-impl RunArgs {
-    fn new(args: Vec<String>, image: String) -> RunArgs {
-        let mut pipes = [0;2];
-        unsafe { pipe(pipes.as_mut_ptr()) };
-        RunArgs {
-            args,
-            image,
-            pipes,
-        }
-    }
-
-    fn signal_child(&self) {
-        unsafe {
-            cwrite(self.pipes[1], vec![0].as_ptr() as *const c_void, 1);
-        }
-    }
-
-    fn wait_for_parent(&self) {
-        unsafe {
-            //close(self.pipes[1]);
-            read(self.pipes[0], std::ptr::null_mut(), 1);
-        };
+fn change_root(location: &str) -> Result<(), Error> {
+    let res = unsafe {
+        chroot(str_to_pointer!(location))
+    };
+    if res == 0 {
+        Ok(())
+    } else {
+        Err(Error::from(RunError::ChrootError { errno: get_errorno!() }))
     }
 }
 
-impl Drop for RunArgs {
-    fn drop(&mut self) {
-        unsafe {
-            close(self.pipes[0]);
-            close(self.pipes[1]);
-        }
-    }
-}
-
-macro_rules! str_to_pointer {
-    ($str:expr) => {
-        CString::from_vec_unchecked($str.as_bytes().to_vec()).as_ptr()
-    }
-}
-
-struct Mount {
-    target: String,
-}
-
-impl Mount {
-    fn new(resource: String, target: String, fs_type: String) -> Mount {
-        unsafe {
-            mount(
-                str_to_pointer!(resource),
-                str_to_pointer!(target),
-                str_to_pointer!(fs_type),
-                0,
-                std::ptr::null(),
-            )
-        };
-        Mount { target }
-    }
-}
-
-impl Drop for Mount {
-    fn drop(&mut self) {
-        unsafe {
-            umount(str_to_pointer!(self.target));
-        }
-    }
-}
-
-fn change_root(location: &str) {
-    unsafe {
-        chroot(str_to_pointer!(location));
+fn safe_getuid() -> Result<u32, Error> {
+    let res = unsafe { getuid() };
+    if res < 0 {
+        Err(Error::from(RunError::GetuidError { errno: get_errorno!() }))
+    } else {
+        Ok(res)
     }
 }
 
 fn set_user_map(id: c_int) -> Result<(), Error> {
     let user_map_location = format!("/proc/{}/uid_map", id);
-    let content = format!("0 {} 1\n", unsafe { getuid() });
+    let content = format!("0 {} 1\n", safe_getuid()?);
     write(user_map_location, content)
         .map(|_| ())
         .map_err(|e| {
@@ -121,14 +82,14 @@ fn stack_memory() -> *mut c_void {
 
 extern "C" fn run(args: *mut c_void) -> c_int {
     let run_args = unsafe { &mut *(args as *mut RunArgs) };
-    run_args.wait_for_parent();
+    run_args.wait_for_parent().unwrap();
     unsafe { setuid(0) };
-    change_root(&run_args.image);
+    change_root(&run_args.image).unwrap();
     let _proc_mount = Mount::new(
         "proc".to_owned(),
         "/proc".to_owned(),
         "proc".to_owned(),
-    );
+    ).unwrap();
     let p_cgroup = Arc::new(Cgroup::new().unwrap());
     let cgroup = p_cgroup.clone();
     Command::new(run_args.args[0].clone())
@@ -152,7 +113,7 @@ extern "C" fn run(args: *mut c_void) -> c_int {
 
 fn jail(args: Vec<String>, image: String) -> Result<c_int, Error> {
     let stack = stack_memory();
-    let mut run_args = RunArgs::new(args, image);
+    let mut run_args = RunArgs::new(args, image)?;
     let c_args: *mut c_void = &mut run_args as *mut _ as *mut c_void;
     let id = unsafe {
         clone(
@@ -163,7 +124,7 @@ fn jail(args: Vec<String>, image: String) -> Result<c_int, Error> {
         )
     };
     set_user_map(id)?;
-    run_args.signal_child();
+    run_args.signal_child()?;
     if id < 0 {
         Err(Error::from(RunError::ErrorExecutingCommand))
     } else {
