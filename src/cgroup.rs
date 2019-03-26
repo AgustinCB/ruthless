@@ -1,3 +1,4 @@
+use crate::mount::MOUNTS_FILE;
 use failure::Error;
 use std::fs::{create_dir, read, remove_dir, write};
 use std::path::{Path, PathBuf};
@@ -12,7 +13,6 @@ enum CgroupError {
 }
 
 const CGROUP_FILE: &'static str = "/proc/self/cgroup";
-const MOUNTS_FILE: &'static str = "/proc/mounts";
 
 fn get_unix_timestamp() -> Result<u64, Error> {
     Ok(

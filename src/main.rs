@@ -24,6 +24,7 @@ macro_rules! get_errorno {
 }
 
 mod cgroup;
+mod images;
 mod mount;
 mod run_args;
 

@@ -2,6 +2,8 @@ use failure::Error;
 use libc::{c_int, __errno_location, mount, umount};
 use std::ffi::CString;
 
+pub(crate) const MOUNTS_FILE: &'static str = "/proc/mounts";
+
 #[derive(Debug, Fail)]
 enum MountError {
     #[fail(display="Error mounting endpoint: {}", errno)]
