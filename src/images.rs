@@ -14,7 +14,7 @@ pub(crate) enum ImageError {
     LibPathNotMounted,
 }
 
-const LIB_LOCATION: &'static str = ".local/lib/ruthless";
+const LIB_LOCATION: &'static str = ".local/lib/ruthless/images";
 
 fn get_image_repository_path() -> Result<PathBuf, Error> {
     let home_path = home_dir().ok_or(ImageError::NoHomeDirectory)?;

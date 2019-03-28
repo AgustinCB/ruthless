@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -euo pipefail
+
+RUTHLESS_PATH="$HOME/.local/lib/ruthless"
+IMAGES_PATH="$RUTHLESS_PATH/images"
+DEVICE_PATH="$RUTHLESS_PATH/device.img"
+
+mkdir -p RUTHLESS_PATH
+
+truncate -s10G "$DEVICE_PATH"
+DEVICE=$(sudo losetup --show --find "$DEVICE")
+
+mkfs -t btrfs "$DEVICE"
+
+mount "$DEVICE" "$IMAGES_PATH"
