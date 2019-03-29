@@ -9,7 +9,6 @@ use std::ffi::{CString, c_void};
 use std::fs::write;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, exit, id};
-use std::sync::Arc;
 
 macro_rules! str_to_pointer {
     ($str:expr) => {
@@ -28,7 +27,7 @@ mod images;
 mod mount;
 mod run_args;
 
-use cgroup::Cgroup;
+use images::get_image_location;
 use mount::Mount;
 use run_args::RunArgs;
 
@@ -135,8 +134,9 @@ fn main() {
 
     args.next();
     let image = args.next().unwrap();
+    let image_path = get_image_location(&image).unwrap().to_str().unwrap().to_owned();
 
-    let child_id = jail(args.collect(), image).unwrap();
+    let child_id = jail(args.collect(), image_path).unwrap();
     let r = unsafe {
         waitpid(child_id, std::ptr::null_mut(), 0)
     };

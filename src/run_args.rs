@@ -29,7 +29,7 @@ impl RunArgs {
         let res = unsafe { pipe(pipes.as_mut_ptr()) };
         let cgroup = Arc::new(Cgroup::new()?);
         if res != 0 {
-            Err(Error::from(RunArgsError::PipeCreationError { errno: unsafe { *__errno_location() } }))
+            Err(RunArgsError::PipeCreationError { errno: unsafe { *__errno_location() } })?
         } else {
             Ok(RunArgs {
                 args,
@@ -47,7 +47,7 @@ impl RunArgs {
         if res > 0 {
             Ok(())
         } else {
-            Err(Error::from(RunArgsError::PipeWritingError { errno: unsafe { *__errno_location() } }))
+            Err(RunArgsError::PipeWritingError { errno: unsafe { *__errno_location() } })?
         }
     }
 
@@ -59,7 +59,7 @@ impl RunArgs {
         if res > 0 {
             Ok(())
         } else {
-            Err(Error::from(RunArgsError::PipeReadingError { errno: unsafe { *__errno_location() } }))
+            Err(RunArgsError::PipeReadingError { errno: unsafe { *__errno_location() } })?
         }
     }
 
@@ -70,7 +70,7 @@ impl RunArgs {
         if res == 0 {
             Ok(())
         } else {
-            Err(Error::from(RunArgsError::PipeClosingError { errno: unsafe { *__errno_location() } }))
+            Err(RunArgsError::PipeClosingError { errno: unsafe { *__errno_location() } })?
         }
     }
 }
