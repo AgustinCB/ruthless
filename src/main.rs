@@ -7,8 +7,7 @@ use libc::{c_int, chroot, clone, getuid, setuid, waitpid, CLONE_NEWNS, CLONE_NEW
 use std::env::args;
 use std::ffi::{CString, c_void};
 use std::fs::write;
-use std::os::unix::process::CommandExt;
-use std::process::{Command, exit, id};
+use std::process::{Command, exit};
 
 macro_rules! str_to_pointer {
     ($str:expr) => {
@@ -27,9 +26,10 @@ mod images;
 mod mount;
 mod run_args;
 
-use images::get_image_location;
+use images::ImageRepository;
 use mount::Mount;
 use run_args::RunArgs;
+use crate::cgroup::Cgroup;
 
 const USAGE: &'static str = "USAGE: ruthless [image] [command]";
 const STACK_SIZE: usize = 65536;
@@ -49,7 +49,7 @@ fn change_root(location: &str) -> Result<(), Error> {
     if res == 0 {
         Ok(())
     } else {
-        Err(Error::from(RunError::ChrootError { errno: get_errorno!() }))
+        Err(RunError::ChrootError { errno: get_errorno!() })?
     }
 }
 
@@ -60,12 +60,8 @@ fn safe_getuid() -> u32 {
 fn set_user_map(id: c_int) -> Result<(), Error> {
     let user_map_location = format!("/proc/{}/uid_map", id);
     let content = format!("0 {} 1\n", safe_getuid());
-    write(user_map_location, content)
-        .map(|_| ())
-        .map_err(|e| {
-            eprintln!("{}", e);
-            Error::from(e)
-        })
+    write(user_map_location, content)?;
+    Ok(())
 }
 
 fn stack_memory() -> *mut c_void {
@@ -83,7 +79,6 @@ extern "C" fn run(args: *mut c_void) -> c_int {
         "/proc".to_owned(),
         "proc".to_owned(),
     ).unwrap();
-    let cgroup = run_args.cgroup.clone();
     Command::new(run_args.args[0].clone())
         .args(run_args.args[1..].into_iter())
         .env_clear()
@@ -91,11 +86,6 @@ extern "C" fn run(args: *mut c_void) -> c_int {
             vec![("PATH", "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin")].into_iter()
         )
         .current_dir("/")
-        .before_exec(move || {
-            cgroup.add_pid(id()).unwrap();
-            cgroup.set_max_processes(4).unwrap();
-            Ok(())
-        })
         .spawn()
         .expect("Command failed to start")
         .wait()
@@ -103,9 +93,11 @@ extern "C" fn run(args: *mut c_void) -> c_int {
     0
 }
 
-fn jail(args: Vec<String>, image: String) -> Result<c_int, Error> {
+fn jail(args: Vec<String>, image: String) -> Result<(), Error> {
     let stack = stack_memory();
+    let cgroup = Cgroup::new()?;
     let mut run_args = RunArgs::new(args, image)?;
+    cgroup.set_max_processes(4)?;
     let c_args: *mut c_void = &mut run_args as *mut _ as *mut c_void;
     let id = unsafe {
         clone(
@@ -115,12 +107,20 @@ fn jail(args: Vec<String>, image: String) -> Result<c_int, Error> {
             c_args
         )
     };
-    set_user_map(id)?;
-    run_args.signal_child()?;
     if id < 0 {
-        Err(Error::from(RunError::ErrorExecutingCommand))
+        Err(RunError::ErrorExecutingCommand)?
     } else {
-        Ok(id)
+        set_user_map(id)?;
+        cgroup.add_pid(id as u32)?;
+        run_args.signal_child()?;
+        let r = unsafe {
+            waitpid(id, std::ptr::null_mut(), 0)
+        };
+        if r < 0 {
+            Err(RunError::ErrorExecutingCommand)?
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -134,14 +134,8 @@ fn main() {
 
     args.next();
     let image = args.next().unwrap();
-    let image_path = get_image_location(&image).unwrap().to_str().unwrap().to_owned();
+    let image_repository = ImageRepository::new().unwrap();
+    let image_path = image_repository.get_image_location(&image).unwrap().to_str().unwrap().to_owned();
 
-    let child_id = jail(args.collect(), image_path).unwrap();
-    let r = unsafe {
-        waitpid(child_id, std::ptr::null_mut(), 0)
-    };
-    if r < 0 {
-        eprintln!("Error on the execution of the command");
-        exit(1);
-    }
+    jail(args.collect(), image_path).unwrap();
 }

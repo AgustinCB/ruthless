@@ -23,8 +23,7 @@ fn get_unix_timestamp() -> Result<u64, Error> {
 }
 
 fn find_process_cgroup() -> Result<Option<String>, Error> {
-    let cgroup_bytes = read(CGROUP_FILE)
-        .map_err(|e| Error::from(e))?;
+    let cgroup_bytes = read(CGROUP_FILE)?;
     let cgroup_content = String::from_utf8(cgroup_bytes)?;
     Ok(cgroup_content
         .split('\n')
@@ -34,8 +33,7 @@ fn find_process_cgroup() -> Result<Option<String>, Error> {
 }
 
 fn find_cgroups_path() -> Result<Option<String>, Error> {
-    let mounts_bytes = read(MOUNTS_FILE)
-        .map_err(|e| Error::from(e))?;
+    let mounts_bytes = read(MOUNTS_FILE)?;
     let mounts_content = String::from_utf8(mounts_bytes)?;
     Ok(
         mounts_content.split('\n')
@@ -45,37 +43,34 @@ fn find_cgroups_path() -> Result<Option<String>, Error> {
 }
 
 pub(crate) struct Cgroup {
+    parent: PathBuf,
     path: PathBuf,
 }
 
 impl Cgroup {
     pub(crate) fn new() -> Result<Cgroup, Error> {
-        let cgroup_path = find_cgroups_path()?.ok_or(Error::from(CgroupError::CgroupNotMounted))?;
-        let cgroup = find_process_cgroup()?.ok_or(Error::from(CgroupError::NoCgroup))?;
+        let cgroup_path = find_cgroups_path()?.ok_or(CgroupError::CgroupNotMounted)?;
+        let cgroup = find_process_cgroup()?.ok_or(CgroupError::NoCgroup)?;
         let new_cgroup_name = format!("ruthless-{}", get_unix_timestamp()?);
-        let path = Path::new(&cgroup_path).join(cgroup).join(&new_cgroup_name);
+        let parent = Path::new(&cgroup_path).join(cgroup);
+        let path = parent.join(&new_cgroup_name);
 
         create_dir(path.clone())?;
 
         Ok(Cgroup {
+            parent,
             path
         })
     }
 
     pub(crate) fn set_max_processes(&self, max_pids: usize) -> Result<(), Error> {
-        write(
-            self.path.join("pids.max"), format!("{}", max_pids),
-        )
-            .map(|_| ())
-            .map_err(|e| Error::from(e))
+        write(self.parent.join("pids.max"), format!("{}", max_pids))?;
+        Ok(())
     }
 
     pub(crate) fn add_pid(&self, pid: u32) -> Result<(), Error> {
-        write(
-            self.path.join("cgroup.procs"), format!("{}", pid),
-        )
-            .map(|_| ())
-            .map_err(|e| Error::from(e))
+        write(self.path.join("cgroup.procs"), format!("{}", pid))?;
+        Ok(())
     }
 }
 

@@ -1,8 +1,6 @@
-use crate::cgroup::Cgroup;
 use failure::Error;
 use libc::{c_int, close, read, pipe, write, __errno_location};
 use std::ffi::c_void;
-use std::sync::Arc;
 
 #[derive(Debug, Fail)]
 enum RunArgsError {
@@ -18,7 +16,6 @@ enum RunArgsError {
 
 pub(crate) struct RunArgs {
     pub(crate) args: Vec<String>,
-    pub(crate) cgroup: Arc<Cgroup>,
     pub(crate) image: String,
     pipes: [c_int; 2],
 }
@@ -27,13 +24,11 @@ impl RunArgs {
     pub(crate) fn new(args: Vec<String>, image: String) -> Result<RunArgs, Error> {
         let mut pipes = [0;2];
         let res = unsafe { pipe(pipes.as_mut_ptr()) };
-        let cgroup = Arc::new(Cgroup::new()?);
         if res != 0 {
             Err(RunArgsError::PipeCreationError { errno: unsafe { *__errno_location() } })?
         } else {
             Ok(RunArgs {
                 args,
-                cgroup,
                 image,
                 pipes,
             })

@@ -33,24 +33,35 @@ fn get_image_repository_path() -> Result<PathBuf, Error> {
     }
 }
 
-pub(crate) fn get_image_location(image: &str) -> Result<PathBuf, Error> {
-    let file = metadata(image.clone());
-    match file {
-        Ok(m) => {
-            let path = PathBuf::from(image.clone());
-            if m.is_dir() {
-                Ok(path)
-            } else {
-                Err(ImageError::ImageIsntDirectory(path))?
+pub(crate) struct ImageRepository {
+    path: PathBuf,
+}
+
+impl ImageRepository {
+    pub(crate) fn new() -> Result<ImageRepository, Error> {
+        let path = get_image_repository_path()?;
+        Ok(ImageRepository { path })
+    }
+
+    pub(crate) fn get_image_location(&self, image: &str) -> Result<PathBuf, Error> {
+        let file = metadata(image.clone());
+        match file {
+            Ok(m) => {
+                let path = PathBuf::from(image.clone());
+                if m.is_dir() {
+                    Ok(path)
+                } else {
+                    Err(ImageError::ImageIsntDirectory(path))?
+                }
             }
-        }
-        Err(_) => {
-            let location = get_image_repository_path()?.join(image);
-            let m = metadata(&location)?;
-            if m.is_dir() {
-                Ok(location)
-            } else {
-                Err(ImageError::ImageDoesntExist(location))?
+            Err(_) => {
+                let location = self.path.join(image);
+                let m = metadata(&location)?;
+                if m.is_dir() {
+                    Ok(location)
+                } else {
+                    Err(ImageError::ImageDoesntExist(location))?
+                }
             }
         }
     }
