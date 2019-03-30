@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 failure = "0.1.5"
-libc = "0.2.50"
+nix = "0.13.0"

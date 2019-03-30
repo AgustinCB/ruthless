@@ -1,16 +1,7 @@
 use failure::Error;
-use libc::{c_int, __errno_location, mount, umount};
-use std::ffi::CString;
+use nix::mount::{MsFlags, mount, umount};
 
 pub(crate) const MOUNTS_FILE: &'static str = "/proc/mounts";
-
-#[derive(Debug, Fail)]
-enum MountError {
-    #[fail(display="Error mounting endpoint: {}", errno)]
-    MountingError { errno: c_int },
-    #[fail(display="Error umounting endpoint: {}", errno)]
-    UmountingError { errno: c_int },
-}
 
 pub(crate) struct Mount {
     target: String,
@@ -18,30 +9,20 @@ pub(crate) struct Mount {
 
 impl Mount {
     pub(crate) fn new(resource: String, target: String, fs_type: String) -> Result<Mount, Error> {
-        let res = unsafe {
-            mount(
-                str_to_pointer!(resource),
-                str_to_pointer!(target),
-                str_to_pointer!(fs_type),
-                0,
-                std::ptr::null(),
-            )
-        };
-        if res != 0 {
-            Err(Error::from(MountError::MountingError { errno: unsafe { *__errno_location() } }))
-        } else {
-            Ok(Mount { target })
-        }
+        const NONE: Option<&'static [u8]> = None;
+        mount(
+            Some(resource.as_str()),
+            target.as_str(),
+            Some(fs_type.as_str()),
+            MsFlags::empty(),
+            NONE,
+        )?;
+        Ok(Mount { target })
     }
 }
 
 impl Drop for Mount {
     fn drop(&mut self) {
-        let res = unsafe {
-            umount(str_to_pointer!(self.target))
-        };
-        if res != 0 {
-            panic!("{}", MountError::UmountingError { errno: unsafe { *__errno_location() } })
-        }
+        umount(self.target.as_str()).unwrap();
     }
 }
