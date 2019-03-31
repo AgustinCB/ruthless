@@ -1,6 +1,6 @@
 use crate::mount::MOUNTS_FILE;
 use failure::Error;
-use std::fs::{create_dir, read, remove_dir, write};
+use std::fs::{create_dir, read_to_string, remove_dir, write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -13,6 +13,10 @@ enum CgroupError {
 }
 
 const CGROUP_FILE: &'static str = "/proc/self/cgroup";
+const CGROUP_PROCS: &'static str = "cgroup.procs";
+const PIDS_MAX: &'static str = "pids.max";
+const CGROUP_FS: &'static str = "cgroup2";
+const CGROUP_PREFIX: &'static str = "0::/";
 
 fn get_unix_timestamp() -> Result<u64, Error> {
     Ok(
@@ -23,21 +27,19 @@ fn get_unix_timestamp() -> Result<u64, Error> {
 }
 
 fn find_process_cgroup() -> Result<Option<String>, Error> {
-    let cgroup_bytes = read(CGROUP_FILE)?;
-    let cgroup_content = String::from_utf8(cgroup_bytes)?;
+    let cgroup_content = read_to_string(CGROUP_FILE)?;
     Ok(cgroup_content
         .split('\n')
-        .find(|s| s.starts_with("0::"))
-        .map(|s| s.replace("0::/", "").to_owned())
+        .find(|s| s.starts_with(CGROUP_PREFIX))
+        .map(|s| s.replace(CGROUP_PREFIX, "").to_owned())
     )
 }
 
 fn find_cgroups_path() -> Result<Option<String>, Error> {
-    let mounts_bytes = read(MOUNTS_FILE)?;
-    let mounts_content = String::from_utf8(mounts_bytes)?;
+    let mounts_content = read_to_string(MOUNTS_FILE)?;
     Ok(
         mounts_content.split('\n')
-            .find(|s| s.starts_with("cgroup2"))
+            .find(|s| s.starts_with(CGROUP_FS))
             .map(|s| s.split(' ').collect::<Vec<&str>>()[1].to_owned())
     )
 }
@@ -64,12 +66,12 @@ impl Cgroup {
     }
 
     pub(crate) fn set_max_processes(&self, max_pids: usize) -> Result<(), Error> {
-        write(self.parent.join("pids.max"), format!("{}", max_pids))?;
+        write(self.parent.join(PIDS_MAX), format!("{}", max_pids))?;
         Ok(())
     }
 
     pub(crate) fn add_pid(&self, pid: u32) -> Result<(), Error> {
-        write(self.path.join("cgroup.procs"), format!("{}", pid))?;
+        write(self.path.join(CGROUP_PROCS), format!("{}", pid))?;
         Ok(())
     }
 }

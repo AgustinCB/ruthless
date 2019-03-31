@@ -1,8 +1,43 @@
 use crate::mount::MOUNTS_FILE;
+use dirs::home_dir;
 use failure::Error;
-use std::env::home_dir;
 use std::fs::{metadata, read};
+use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
+use nix::dir::{Dir, Type};
+use nix::fcntl::OFlag;
+use nix::sys::stat::Mode;
+use uuid::Uuid;
+
+pub(crate) const BTRFS_IOCTL_MAGIC: u64 = 0x94;
+pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
+pub(crate) const BTRFS_IOC_SNAP_DESTROY: u64 = 15;
+const BTRFS_PATH_NAME_MAX: usize = 4087;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BtrfsVolArgs {
+    fd: i64,
+    name: [u8; BTRFS_PATH_NAME_MAX + 1],
+}
+impl BtrfsVolArgs {
+    pub(crate) fn new(fd: i64, name: String) -> BtrfsVolArgs {
+        let bytes = name.into_bytes();
+        let mut name = [0; BTRFS_PATH_NAME_MAX + 1];
+        for i in 0..bytes.len() {
+            if i < bytes.len() {
+                name[i] = bytes[i];
+            }
+        }
+        BtrfsVolArgs {
+            fd,
+            name,
+        }
+    }
+}
+
+ioctl_write_ptr!(btrfs_ioc_snap_create, BTRFS_IOCTL_MAGIC, BTRFS_IOC_SNAP_CREATE, BtrfsVolArgs);
+ioctl_write_ptr!(btrfs_ioc_snap_delete, BTRFS_IOCTL_MAGIC, BTRFS_IOC_SNAP_DESTROY, BtrfsVolArgs);
 
 #[derive(Debug, Fail)]
 pub(crate) enum ImageError {
@@ -58,11 +93,57 @@ impl ImageRepository {
                 let location = self.path.join(image);
                 let m = metadata(&location)?;
                 if m.is_dir() {
-                    Ok(location)
+                    Ok(self.get_image_snapshot(location)?)
                 } else {
                     Err(ImageError::ImageDoesntExist(location))?
                 }
             }
         }
+    }
+
+    pub(crate) fn get_images(&self) -> Result<Vec<String>, Error> {
+        let mut repository = Dir::open(
+            &self.path,
+            OFlag::O_DIRECTORY,
+            Mode::S_IRUSR,
+        )?;
+        let mut result = Vec::new();
+        for maybe_entry in repository.iter() {
+            let entry = maybe_entry?;
+            match entry.file_type() {
+                Some(Type::Directory) => {
+                    let name = entry.file_name().to_str()?;
+                    if name != "." && name != ".." {
+                        result.push(name.to_owned())
+                    }
+                }
+                _ => {},
+            }
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn delete_image(&self, name: String) -> Result<(), Error> {
+        let repository = Dir::open(
+            &self.path,
+            OFlag::O_DIRECTORY,
+            Mode::S_IRWXU,
+        )?;
+        let args = BtrfsVolArgs::new(-1i64, name);
+        unsafe { btrfs_ioc_snap_delete(repository.as_raw_fd() as i32, &args) }?;
+        Ok(())
+    }
+
+    fn get_image_snapshot(&self, parent: PathBuf) -> Result<PathBuf, Error> {
+        let repository = Dir::open(
+            &self.path,
+            OFlag::O_DIRECTORY,
+            Mode::S_IRWXU,
+        )?;
+        let source = Dir::open(&parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
+        let name = Uuid::new_v4().to_string();
+        let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name.clone());
+        unsafe { btrfs_ioc_snap_create(repository.as_raw_fd() as i32, &args) }?;
+        Ok(self.path.join(name.as_str()))
     }
 }

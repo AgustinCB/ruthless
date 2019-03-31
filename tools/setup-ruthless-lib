@@ -14,4 +14,7 @@ DEVICE=$(sudo losetup --show --find "$DEVICE_PATH")
 
 mkfs -t btrfs -f "$DEVICE_PATH"
 
-sudo mount "$DEVICE" "$IMAGES_PATH"
+sudo mount -o user_subvol_rm_allowed "$DEVICE" "$IMAGES_PATH"
+USER=$(whoami)
+GROUP=$(id -gn)
+sudo chown "$USER":"$GROUP" "$IMAGES_PATH"
