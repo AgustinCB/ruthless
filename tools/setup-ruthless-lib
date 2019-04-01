@@ -9,11 +9,13 @@ DEVICE_PATH="$RUTHLESS_PATH/device.img"
 mkdir -p "$RUTHLESS_PATH"
 mkdir -p "$IMAGES_PATH"
 
-truncate -s10G "$DEVICE_PATH"
+if [ ! -f "$DEVICE_PATH" ]; then
+    truncate -s10G "$DEVICE_PATH"
+
+    mkfs -t btrfs -f "$DEVICE_PATH"
+fi
+
 DEVICE=$(sudo losetup --show --find "$DEVICE_PATH")
-
-mkfs -t btrfs -f "$DEVICE_PATH"
-
 sudo mount -o user_subvol_rm_allowed "$DEVICE" "$IMAGES_PATH"
 USER=$(whoami)
 GROUP=$(id -gn)
