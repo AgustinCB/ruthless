@@ -5,13 +5,15 @@ set -xeuo pipefail
 RUTHLESS_PATH="$HOME/.local/lib/ruthless"
 IMAGES_PATH="$RUTHLESS_PATH/images"
 DEVICE_PATH="$RUTHLESS_PATH/device.img"
+CGROUP_PATH=$(cat /proc/mounts | grep cgroup2 | awk '{print $2}')
+USER_ID=$(id -u)
 
 mkdir -p "$RUTHLESS_PATH"
 mkdir -p "$IMAGES_PATH"
+mkdir -p "$CGROUP_PATH/user.slice/user-$USER_ID.slice/user@$USER_ID.service/ruthless"
 
 if [ ! -f "$DEVICE_PATH" ]; then
     truncate -s10G "$DEVICE_PATH"
-
     mkfs -t btrfs -f "$DEVICE_PATH"
 fi
 
