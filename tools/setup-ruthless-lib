@@ -7,10 +7,13 @@ IMAGES_PATH="$RUTHLESS_PATH/images"
 DEVICE_PATH="$RUTHLESS_PATH/device.img"
 CGROUP_PATH=$(cat /proc/mounts | grep cgroup2 | awk '{print $2}')
 USER_ID=$(id -u)
+RUTHLESS_CGROUP="$CGROUP_PATH/user.slice/user-$USER_ID.slice/user@$USER_ID.service/ruthless"
 
 mkdir -p "$RUTHLESS_PATH"
 mkdir -p "$IMAGES_PATH"
-mkdir -p "$CGROUP_PATH/user.slice/user-$USER_ID.slice/user@$USER_ID.service/ruthless"
+mkdir -p "RUTHLESS_CGROUP"
+
+cat "$RUTHLESS_CGROUP/cgroup.controllers" | tr ' ' '\n' | xargs -I {} echo "+{}" > "$RUTHLESS_CGROUP/cgroup.subtree_control"
 
 if [ ! -f "$DEVICE_PATH" ]; then
     truncate -s10G "$DEVICE_PATH"
