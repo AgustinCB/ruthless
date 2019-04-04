@@ -54,14 +54,14 @@ impl Jail {
         }
     }
 
-    pub(crate) fn run(&mut self, args: &Vec<String>, image: String) -> Result<(), Error> {
+    pub(crate) fn run(&mut self, args: &Vec<String>, image: &str) -> Result<(), Error> {
         let mut stack = [0u8; STACK_SIZE];
         let pid = clone(
             Box::new(|| {
                 set_user_map(self.user_id).unwrap();
                 setuid(Uid::from_raw(0)).unwrap();
                 self.cgroup.add_pid(getpid().as_raw() as u32).unwrap();
-                chroot(image.as_str()).unwrap();
+                chroot(image).unwrap();
                 run(args).unwrap()
             }),
             stack.as_mut(),

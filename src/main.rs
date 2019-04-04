@@ -26,13 +26,13 @@ ruthless run [image] [command] # Run the given command on the image.
 ruthless image list # List images in the system
 ruthless image delete [image] # Deletes image [image]";
 
-fn run_command(image: String, command: Vec<String>) -> Result<(), Error> {
+fn run_command(image: &str, command: &Vec<String>) -> Result<(), Error> {
     let image_repository = ImageRepository::new()?;
-    let image_path = image_repository.get_image_location(&image)?.to_str().unwrap().to_owned();
+    let image_location = image_repository.get_image_location(image)?;
     let cgroup = Cgroup::new()?;
     cgroup.set_max_processes(10)?;
     let mut jail = Jail::new(cgroup);
-    jail.run(&command, image_path)?;
+    jail.run(command, image_location.to_str().unwrap())?;
     Ok(())
 }
 
@@ -44,7 +44,7 @@ fn list_images_command() -> Result<(), Error> {
     Ok(())
 }
 
-fn delete_image_command(image: String) -> Result<(), Error> {
+fn delete_image_command(image: &str) -> Result<(), Error> {
     let image_repository = ImageRepository::new()?;
     image_repository.delete_image(image)?;
     Ok(())
@@ -57,8 +57,8 @@ fn main() {
     let arguments: Vec<String> = args.collect();
     match Command::try_from(arguments) {
         Ok(Command::ListImages) => { list_images_command().unwrap() },
-        Ok(Command::DeleteImage(image)) => { delete_image_command(image).unwrap() }
-        Ok(Command::Run { image, command }) => { run_command(image, command).unwrap() },
+        Ok(Command::DeleteImage(image)) => { delete_image_command(image.as_str()).unwrap() }
+        Ok(Command::Run { image, command }) => { run_command(image.as_str(), &command).unwrap() },
         Err(e) => {
             eprintln!("{}", e);
             eprintln!("{}", USAGE);

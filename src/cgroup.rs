@@ -1,37 +1,25 @@
 use crate::mount::MOUNTS_FILE;
 use failure::Error;
+use nix::unistd::getuid;
 use std::fs::{create_dir, read_to_string, remove_dir, write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Fail)]
 enum CgroupError {
-    #[fail(display="Process doesn't have cgroup")]
-    NoCgroup,
     #[fail(display="cgroup2 not mounted")]
     CgroupNotMounted,
 }
 
-const CGROUP_FILE: &'static str = "/proc/self/cgroup";
 const CGROUP_PROCS: &'static str = "cgroup.procs";
 const PIDS_MAX: &'static str = "pids.max";
 const CGROUP_FS: &'static str = "cgroup2";
-const CGROUP_PREFIX: &'static str = "0::/";
 
 fn get_unix_timestamp() -> Result<u64, Error> {
     Ok(
         SystemTime::now()
             .duration_since(UNIX_EPOCH)?
             .as_secs()
-    )
-}
-
-fn find_process_cgroup() -> Result<Option<String>, Error> {
-    let cgroup_content = read_to_string(CGROUP_FILE)?;
-    Ok(cgroup_content
-        .split('\n')
-        .find(|s| s.starts_with(CGROUP_PREFIX))
-        .map(|s| s.replace(CGROUP_PREFIX, "").to_owned())
     )
 }
 
@@ -44,6 +32,12 @@ fn find_cgroups_path() -> Result<Option<String>, Error> {
     )
 }
 
+#[inline]
+fn ruthless_cgroup_path() -> String {
+    let uid = getuid();
+    format!("user.slice/user-{}.slice/user@{}.service/ruthless", uid, uid)
+}
+
 pub(crate) struct Cgroup {
     parent: PathBuf,
     path: PathBuf,
@@ -52,12 +46,14 @@ pub(crate) struct Cgroup {
 impl Cgroup {
     pub(crate) fn new() -> Result<Cgroup, Error> {
         let cgroup_path = find_cgroups_path()?.ok_or(CgroupError::CgroupNotMounted)?;
-        let cgroup = find_process_cgroup()?.ok_or(CgroupError::NoCgroup)?;
-        let new_cgroup_name = format!("ruthless-{}", get_unix_timestamp()?);
-        let parent = Path::new(&cgroup_path).join(cgroup);
-        let path = parent.join(&new_cgroup_name);
+        let ruthless_cgroup = Path::new(&cgroup_path).join(ruthless_cgroup_path());
+        let parent_name = format!("{}-core", get_unix_timestamp()?);
+        let cgroup_name = format!("{}-processes", get_unix_timestamp()?);
+        let parent = ruthless_cgroup.join(parent_name);
+        let path = parent.join(&cgroup_name);
 
-        create_dir(path.clone())?;
+        create_dir(&parent)?;
+        create_dir(&path)?;
 
         Ok(Cgroup {
             parent,

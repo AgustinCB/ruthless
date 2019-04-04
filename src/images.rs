@@ -21,12 +21,12 @@ pub struct BtrfsVolArgs {
     name: [u8; BTRFS_PATH_NAME_MAX + 1],
 }
 impl BtrfsVolArgs {
-    pub(crate) fn new(fd: i64, name: String) -> BtrfsVolArgs {
-        let bytes = name.into_bytes();
+    pub(crate) fn new(fd: i64, name: &str) -> BtrfsVolArgs {
+        let bytes = name.bytes();
         let mut name = [0; BTRFS_PATH_NAME_MAX + 1];
-        for i in 0..bytes.len() {
-            if i < bytes.len() {
-                name[i] = bytes[i];
+        for (i, b) in bytes.enumerate() {
+            if i < name.len() {
+                name[i] = b;
             }
         }
         BtrfsVolArgs {
@@ -93,7 +93,7 @@ impl ImageRepository {
                 let location = self.path.join(image);
                 let m = metadata(&location)?;
                 if m.is_dir() {
-                    Ok(self.get_image_snapshot(location)?)
+                    Ok(self.get_image_snapshot(&location)?)
                 } else {
                     Err(ImageError::ImageDoesntExist(location))?
                 }
@@ -123,7 +123,7 @@ impl ImageRepository {
         Ok(result)
     }
 
-    pub(crate) fn delete_image(&self, name: String) -> Result<(), Error> {
+    pub(crate) fn delete_image(&self, name: &str) -> Result<(), Error> {
         let repository = Dir::open(
             &self.path,
             OFlag::O_DIRECTORY,
@@ -134,15 +134,15 @@ impl ImageRepository {
         Ok(())
     }
 
-    fn get_image_snapshot(&self, parent: PathBuf) -> Result<PathBuf, Error> {
+    fn get_image_snapshot(&self, parent: &PathBuf) -> Result<PathBuf, Error> {
         let repository = Dir::open(
             &self.path,
             OFlag::O_DIRECTORY,
             Mode::S_IRWXU,
         )?;
-        let source = Dir::open(&parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
+        let source = Dir::open(parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
         let name = Uuid::new_v4().to_string();
-        let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name.clone());
+        let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name.as_str());
         unsafe { btrfs_ioc_snap_create(repository.as_raw_fd() as i32, &args) }?;
         Ok(self.path.join(name.as_str()))
     }
