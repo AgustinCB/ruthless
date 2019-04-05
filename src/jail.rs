@@ -1,10 +1,10 @@
-use crate::cgroup::Cgroup;
+use crate::cgroup::CgroupFactory;
 use crate::mount::Mount;
 use failure::Error;
 use nix::sched::{clone, CloneFlags};
 use nix::sys::signal::SIGCHLD;
 use nix::sys::wait::waitpid;
-use nix::unistd::{chroot, getpid, getuid, setuid, Uid};
+use nix::unistd::{chroot, getpid, getuid, setuid, Pid, Uid};
 use std::fs::write;
 use std::process::Command;
 
@@ -37,39 +37,62 @@ fn run(run_args: &Vec<String>) -> Result<isize, Error> {
         .spawn()
         .expect(COMMAND_ERROR)
         .wait()?;
-    Ok(exit_status.code().unwrap() as isize)
+    Ok(exit_status.code().unwrap_or(0) as isize)
+}
+
+fn start_parent_process(args: &Vec<String>, image: &str, cgroup_factory: CgroupFactory, user_id: Uid) -> Result<isize, Error> {
+    let mut stack = [0u8; STACK_SIZE];
+    let cgroup = cgroup_factory.build()?;
+    let pid = clone(
+        Box::new(|| {
+            cgroup.add_pid(getpid().as_raw() as u32).unwrap();
+            set_user_map(user_id).unwrap();
+            setuid(Uid::from_raw(0)).unwrap();
+            chroot(image).unwrap();
+            run(args).unwrap()
+        }),
+        stack.as_mut(),
+        CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWUTS |
+            CloneFlags::CLONE_NEWUSER,
+        Some(SIGCHLD as i32),
+    )?;
+    waitpid(pid, None)?;
+    Ok(0)
 }
 
 pub(crate) struct Jail {
-    cgroup: Cgroup,
+    detach: bool,
     user_id: Uid,
 }
 
 impl Jail {
-    pub(crate) fn new(cgroup: Cgroup) -> Jail {
+    pub(crate) fn new(detach: bool) -> Jail {
         let user_id = getuid();
         Jail {
-            cgroup,
+            detach,
             user_id,
         }
     }
 
-    pub(crate) fn run(&mut self, args: &Vec<String>, image: &str) -> Result<(), Error> {
+    pub(crate) fn run(&mut self, args: &Vec<String>, image: &str, cgroup: CgroupFactory) -> Result<(), Error> {
+        let pid = self.start_process(args, image, cgroup)?;
+        if !self.detach {
+            waitpid(pid, None)?;
+        }
+        Ok(())
+    }
+
+    fn start_process(&mut self, args: &Vec<String>, image: &str, cgroup: CgroupFactory) -> Result<Pid, Error> {
         let mut stack = [0u8; STACK_SIZE];
+        let user_id = self.user_id;
         let pid = clone(
             Box::new(|| {
-                set_user_map(self.user_id).unwrap();
-                setuid(Uid::from_raw(0)).unwrap();
-                self.cgroup.add_pid(getpid().as_raw() as u32).unwrap();
-                chroot(image).unwrap();
-                run(args).unwrap()
+                start_parent_process(args, image, cgroup.clone(), user_id).unwrap()
             }),
             stack.as_mut(),
-            CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWUTS |
-                CloneFlags::CLONE_NEWUSER,
+            CloneFlags::empty(),
             Some(SIGCHLD as i32),
         )?;
-        waitpid(pid, None)?;
-        Ok(())
+        Ok(pid)
     }
 }

@@ -29,13 +29,45 @@ fn ruthless_cgroup_path() -> String {
     format!("user.slice/user-{}.slice/user@{}.service/ruthless", uid, uid)
 }
 
+#[derive(Clone)]
+pub(crate) enum CgroupOptions {
+    PidsMax(usize),
+}
+
+#[derive(Clone)]
+pub(crate) struct CgroupFactory {
+    name: String,
+    options: Vec<CgroupOptions>,
+}
+
+impl CgroupFactory {
+    pub(crate) fn new(name: String, options: Vec<CgroupOptions>) -> CgroupFactory {
+        CgroupFactory {
+            name,
+            options,
+        }
+    }
+
+    pub(crate) fn build(self) -> Result<Cgroup, Error> {
+        let cgroup = Cgroup::new(self.name.as_str())?;
+        for o in self.options {
+            match o {
+                CgroupOptions::PidsMax(max) => {
+                    cgroup.set_max_processes(max)?;
+                }
+            }
+        }
+        Ok(cgroup)
+    }
+}
+
 pub(crate) struct Cgroup {
     parent: PathBuf,
     path: PathBuf,
 }
 
 impl Cgroup {
-    pub(crate) fn new(name: &str) -> Result<Cgroup, Error> {
+    fn new(name: &str) -> Result<Cgroup, Error> {
         let cgroup_path = find_cgroups_path()?.ok_or(CgroupError::CgroupNotMounted)?;
         let ruthless_cgroup = Path::new(&cgroup_path).join(ruthless_cgroup_path());
         let parent_name = format!("{}-core", name);
@@ -52,7 +84,7 @@ impl Cgroup {
         })
     }
 
-    pub(crate) fn set_max_processes(&self, max_pids: usize) -> Result<(), Error> {
+    fn set_max_processes(&self, max_pids: usize) -> Result<(), Error> {
         write(self.parent.join(PIDS_MAX), format!("{}", max_pids))?;
         Ok(())
     }

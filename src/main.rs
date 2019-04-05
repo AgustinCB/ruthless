@@ -16,7 +16,7 @@ mod jail;
 mod mount;
 
 use args::Command;
-use cgroup::Cgroup;
+use cgroup::{CgroupFactory, CgroupOptions};
 use images::ImageRepository;
 use jail::Jail;
 
@@ -27,14 +27,13 @@ ruthless run [image] [command] # Run the given command on the image.
 ruthless image list # List images in the system
 ruthless image delete [image] # Deletes image [image]";
 
-fn run_command(image: &str, command: &Vec<String>) -> Result<(), Error> {
+fn run_command(image: &str, command: &Vec<String>, detach: bool) -> Result<(), Error> {
     let name = Uuid::new_v4().to_string();
     let image_repository = ImageRepository::new()?;
     let image_location = image_repository.get_image_location_for_process(image, name.as_str())?;
-    let cgroup = Cgroup::new(name.as_str())?;
-    cgroup.set_max_processes(10)?;
-    let mut jail = Jail::new(cgroup);
-    jail.run(command, image_location.to_str().unwrap())?;
+    let cgroup_factory = CgroupFactory::new(name, vec![CgroupOptions::PidsMax(10)]);
+    let mut jail = Jail::new(detach);
+    jail.run(command, image_location.to_str().unwrap(), cgroup_factory)?;
     Ok(())
 }
 
@@ -60,7 +59,9 @@ fn main() {
     match Command::try_from(arguments) {
         Ok(Command::ListImages) => { list_images_command().unwrap() },
         Ok(Command::DeleteImage(image)) => { delete_image_command(image.as_str()).unwrap() }
-        Ok(Command::Run { image, command }) => { run_command(image.as_str(), &command).unwrap() },
+        Ok(Command::Run { image, command, detach }) => {
+            run_command(image.as_str(), &command, detach).unwrap();
+        },
         Err(e) => {
             eprintln!("{}", e);
             eprintln!("{}", USAGE);

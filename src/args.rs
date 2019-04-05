@@ -20,6 +20,7 @@ pub(crate) enum Command {
     DeleteImage(String),
     ListImages,
     Run {
+        detach: bool,
         command: Vec<String>,
         image: String,
     },
@@ -38,6 +39,32 @@ fn parse_image_subcommand<I: Iterator<Item=String>>(
     }
 }
 
+fn parse_run_subcommand<I: Iterator<Item=String>>(
+    source: I
+) -> Result<Command, ArgumentParsingError> {
+    let mut image = None;
+    let mut command = Vec::new();
+    let mut detach = false;
+    for s in source {
+        match (s.as_str(), &image) {
+            ("-d", _) | ("--detach", _) if command.len() == 0 => {
+                detach = true;
+            }
+            (i, None) => {
+                image = Some(i.to_owned())
+            }
+            (c, Some(_)) => {
+                command.push(c.to_owned());
+            }
+        }
+    }
+    Ok(Command::Run {
+        command,
+        detach,
+        image: image.ok_or(ArgumentParsingError::MissingImage)?,
+    })
+}
+
 impl TryFrom<Vec<String>> for Command {
     type Error = ArgumentParsingError;
 
@@ -46,11 +73,7 @@ impl TryFrom<Vec<String>> for Command {
         let leading = source.next().ok_or(ArgumentParsingError::NotEnoughArguments)?;
         match leading.as_str() {
             "image" => { parse_image_subcommand(source) },
-            "run" => {
-                let image = source.next().ok_or(ArgumentParsingError::MissingImage)?.clone();
-                let command = source.map(|s| s.clone()).collect();
-                Ok(Command::Run { image, command })
-            }
+            "run" => { parse_run_subcommand(source) },
             c => Err(ArgumentParsingError::UnexpectedCommand(c.to_owned()))
         }
     }
