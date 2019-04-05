@@ -3,7 +3,6 @@ use failure::Error;
 use nix::unistd::getuid;
 use std::fs::{create_dir, read_to_string, remove_dir, write};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Fail)]
 enum CgroupError {
@@ -14,14 +13,6 @@ enum CgroupError {
 const CGROUP_PROCS: &'static str = "cgroup.procs";
 const PIDS_MAX: &'static str = "pids.max";
 const CGROUP_FS: &'static str = "cgroup2";
-
-fn get_unix_timestamp() -> Result<u64, Error> {
-    Ok(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)?
-            .as_secs()
-    )
-}
 
 fn find_cgroups_path() -> Result<Option<String>, Error> {
     let mounts_content = read_to_string(MOUNTS_FILE)?;
@@ -44,11 +35,11 @@ pub(crate) struct Cgroup {
 }
 
 impl Cgroup {
-    pub(crate) fn new() -> Result<Cgroup, Error> {
+    pub(crate) fn new(name: &str) -> Result<Cgroup, Error> {
         let cgroup_path = find_cgroups_path()?.ok_or(CgroupError::CgroupNotMounted)?;
         let ruthless_cgroup = Path::new(&cgroup_path).join(ruthless_cgroup_path());
-        let parent_name = format!("{}-core", get_unix_timestamp()?);
-        let cgroup_name = format!("{}-processes", get_unix_timestamp()?);
+        let parent_name = format!("{}-core", name);
+        let cgroup_name = format!("{}-processes", name);
         let parent = ruthless_cgroup.join(parent_name);
         let path = parent.join(&cgroup_name);
 
@@ -75,5 +66,6 @@ impl Cgroup {
 impl Drop for Cgroup {
     fn drop(&mut self) {
         remove_dir(self.path.clone()).unwrap();
+        remove_dir(self.parent.clone()).unwrap();
     }
 }

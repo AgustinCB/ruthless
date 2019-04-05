@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use nix::dir::{Dir, Type};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
-use uuid::Uuid;
 
 pub(crate) const BTRFS_IOCTL_MAGIC: u64 = 0x94;
 pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
@@ -78,7 +77,7 @@ impl ImageRepository {
         Ok(ImageRepository { path })
     }
 
-    pub(crate) fn get_image_location(&self, image: &str) -> Result<PathBuf, Error> {
+    pub(crate) fn get_image_location_for_process(&self, image: &str, name: &str) -> Result<PathBuf, Error> {
         let file = metadata(image.clone());
         match file {
             Ok(m) => {
@@ -93,7 +92,7 @@ impl ImageRepository {
                 let location = self.path.join(image);
                 let m = metadata(&location)?;
                 if m.is_dir() {
-                    Ok(self.get_image_snapshot(&location)?)
+                    Ok(self.create_image_snapshot(&location, name)?)
                 } else {
                     Err(ImageError::ImageDoesntExist(location))?
                 }
@@ -134,16 +133,15 @@ impl ImageRepository {
         Ok(())
     }
 
-    fn get_image_snapshot(&self, parent: &PathBuf) -> Result<PathBuf, Error> {
+    fn create_image_snapshot(&self, parent: &PathBuf, name: &str) -> Result<PathBuf, Error> {
         let repository = Dir::open(
             &self.path,
             OFlag::O_DIRECTORY,
             Mode::S_IRWXU,
         )?;
         let source = Dir::open(parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
-        let name = Uuid::new_v4().to_string();
-        let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name.as_str());
+        let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name);
         unsafe { btrfs_ioc_snap_create(repository.as_raw_fd() as i32, &args) }?;
-        Ok(self.path.join(name.as_str()))
+        Ok(self.path.join(name))
     }
 }

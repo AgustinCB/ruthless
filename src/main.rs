@@ -7,6 +7,7 @@ use failure::Error;
 use std::convert::TryFrom;
 use std::env::args;
 use std::process::exit;
+use uuid::Uuid;
 
 mod args;
 mod cgroup;
@@ -27,9 +28,10 @@ ruthless image list # List images in the system
 ruthless image delete [image] # Deletes image [image]";
 
 fn run_command(image: &str, command: &Vec<String>) -> Result<(), Error> {
+    let name = Uuid::new_v4().to_string();
     let image_repository = ImageRepository::new()?;
-    let image_location = image_repository.get_image_location(image)?;
-    let cgroup = Cgroup::new()?;
+    let image_location = image_repository.get_image_location_for_process(image, name.as_str())?;
+    let cgroup = Cgroup::new(name.as_str())?;
     cgroup.set_max_processes(10)?;
     let mut jail = Jail::new(cgroup);
     jail.run(command, image_location.to_str().unwrap())?;
