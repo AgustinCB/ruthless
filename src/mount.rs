@@ -1,5 +1,5 @@
 use failure::Error;
-use nix::mount::{MsFlags, mount, umount};
+use nix::mount::{mount, umount, MsFlags};
 
 pub(crate) const MOUNTS_FILE: &'static str = "/proc/mounts";
 

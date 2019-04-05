@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Fail)]
 enum CgroupError {
-    #[fail(display="cgroup2 not mounted")]
+    #[fail(display = "cgroup2 not mounted")]
     CgroupNotMounted,
 }
 
@@ -16,17 +16,19 @@ const CGROUP_FS: &'static str = "cgroup2";
 
 fn find_cgroups_path() -> Result<Option<String>, Error> {
     let mounts_content = read_to_string(MOUNTS_FILE)?;
-    Ok(
-        mounts_content.split('\n')
-            .find(|s| s.starts_with(CGROUP_FS))
-            .map(|s| s.split(' ').collect::<Vec<&str>>()[1].to_owned())
-    )
+    Ok(mounts_content
+        .split('\n')
+        .find(|s| s.starts_with(CGROUP_FS))
+        .map(|s| s.split(' ').collect::<Vec<&str>>()[1].to_owned()))
 }
 
 #[inline]
 fn ruthless_cgroup_path() -> String {
     let uid = getuid();
-    format!("user.slice/user-{}.slice/user@{}.service/ruthless", uid, uid)
+    format!(
+        "user.slice/user-{}.slice/user@{}.service/ruthless",
+        uid, uid
+    )
 }
 
 #[derive(Clone)]
@@ -42,10 +44,7 @@ pub(crate) struct CgroupFactory {
 
 impl CgroupFactory {
     pub(crate) fn new(name: String, options: Vec<CgroupOptions>) -> CgroupFactory {
-        CgroupFactory {
-            name,
-            options,
-        }
+        CgroupFactory { name, options }
     }
 
     pub(crate) fn build(self) -> Result<Cgroup, Error> {
@@ -78,10 +77,7 @@ impl Cgroup {
         create_dir(&parent)?;
         create_dir(&path)?;
 
-        Ok(Cgroup {
-            parent,
-            path
-        })
+        Ok(Cgroup { parent, path })
     }
 
     fn set_max_processes(&self, max_pids: usize) -> Result<(), Error> {

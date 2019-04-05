@@ -20,7 +20,8 @@ use cgroup::{CgroupFactory, CgroupOptions};
 use images::ImageRepository;
 use jail::Jail;
 
-const USAGE: &'static str = "Ruthless is a small application to run rootless, daemonless containers.
+const USAGE: &'static str =
+    "Ruthless is a small application to run rootless, daemonless containers.
 
 Possible commands:
 ruthless run [image] [command] # Run the given command on the image.
@@ -57,11 +58,15 @@ fn main() {
     args.next();
     let arguments: Vec<String> = args.collect();
     match Command::try_from(arguments) {
-        Ok(Command::ListImages) => { list_images_command().unwrap() },
-        Ok(Command::DeleteImage(image)) => { delete_image_command(image.as_str()).unwrap() }
-        Ok(Command::Run { image, command, detach }) => {
+        Ok(Command::ListImages) => list_images_command().unwrap(),
+        Ok(Command::DeleteImage(image)) => delete_image_command(image.as_str()).unwrap(),
+        Ok(Command::Run {
+            image,
+            command,
+            detach,
+        }) => {
             run_command(image.as_str(), &command, detach).unwrap();
-        },
+        }
         Err(e) => {
             eprintln!("{}", e);
             eprintln!("{}", USAGE);

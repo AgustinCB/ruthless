@@ -26,21 +26,25 @@ pub(crate) enum Command {
     },
 }
 
-fn parse_image_subcommand<I: Iterator<Item=String>>(
-    mut source: I
+fn parse_image_subcommand<I: Iterator<Item = String>>(
+    mut source: I,
 ) -> Result<Command, ArgumentParsingError> {
-    let subcommand = source.next().ok_or(ArgumentParsingError::NoImageSubCommand)?;
+    let subcommand = source
+        .next()
+        .ok_or(ArgumentParsingError::NoImageSubCommand)?;
     match subcommand.as_str() {
         "list" => Ok(Command::ListImages),
-        "delete" => {
-            Ok(Command::DeleteImage(source.next().ok_or(ArgumentParsingError::MissingImageToDelete)?))
-        }
-        c => Err(ArgumentParsingError::InvalidImageSubCommand(c.to_owned()))
+        "delete" => Ok(Command::DeleteImage(
+            source
+                .next()
+                .ok_or(ArgumentParsingError::MissingImageToDelete)?,
+        )),
+        c => Err(ArgumentParsingError::InvalidImageSubCommand(c.to_owned())),
     }
 }
 
-fn parse_run_subcommand<I: Iterator<Item=String>>(
-    source: I
+fn parse_run_subcommand<I: Iterator<Item = String>>(
+    source: I,
 ) -> Result<Command, ArgumentParsingError> {
     let mut image = None;
     let mut command = Vec::new();
@@ -50,9 +54,7 @@ fn parse_run_subcommand<I: Iterator<Item=String>>(
             ("-d", _) | ("--detach", _) if command.len() == 0 => {
                 detach = true;
             }
-            (i, None) => {
-                image = Some(i.to_owned())
-            }
+            (i, None) => image = Some(i.to_owned()),
             (c, Some(_)) => {
                 command.push(c.to_owned());
             }
@@ -70,11 +72,13 @@ impl TryFrom<Vec<String>> for Command {
 
     fn try_from(args: Vec<String>) -> Result<Command, Self::Error> {
         let mut source = args.into_iter();
-        let leading = source.next().ok_or(ArgumentParsingError::NotEnoughArguments)?;
+        let leading = source
+            .next()
+            .ok_or(ArgumentParsingError::NotEnoughArguments)?;
         match leading.as_str() {
-            "image" => { parse_image_subcommand(source) },
-            "run" => { parse_run_subcommand(source) },
-            c => Err(ArgumentParsingError::UnexpectedCommand(c.to_owned()))
+            "image" => parse_image_subcommand(source),
+            "run" => parse_run_subcommand(source),
+            c => Err(ArgumentParsingError::UnexpectedCommand(c.to_owned())),
         }
     }
 }

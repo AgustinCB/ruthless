@@ -40,7 +40,12 @@ fn run(run_args: &Vec<String>) -> Result<isize, Error> {
     Ok(exit_status.code().unwrap_or(0) as isize)
 }
 
-fn start_parent_process(args: &Vec<String>, image: &str, cgroup_factory: CgroupFactory, user_id: Uid) -> Result<isize, Error> {
+fn start_parent_process(
+    args: &Vec<String>,
+    image: &str,
+    cgroup_factory: CgroupFactory,
+    user_id: Uid,
+) -> Result<isize, Error> {
     let mut stack = [0u8; STACK_SIZE];
     let cgroup = cgroup_factory.build()?;
     let pid = clone(
@@ -52,8 +57,10 @@ fn start_parent_process(args: &Vec<String>, image: &str, cgroup_factory: CgroupF
             run(args).unwrap()
         }),
         stack.as_mut(),
-        CloneFlags::CLONE_NEWNS | CloneFlags::CLONE_NEWPID | CloneFlags::CLONE_NEWUTS |
-            CloneFlags::CLONE_NEWUSER,
+        CloneFlags::CLONE_NEWNS
+            | CloneFlags::CLONE_NEWPID
+            | CloneFlags::CLONE_NEWUTS
+            | CloneFlags::CLONE_NEWUSER,
         Some(SIGCHLD as i32),
     )?;
     waitpid(pid, None)?;
@@ -68,13 +75,15 @@ pub(crate) struct Jail {
 impl Jail {
     pub(crate) fn new(detach: bool) -> Jail {
         let user_id = getuid();
-        Jail {
-            detach,
-            user_id,
-        }
+        Jail { detach, user_id }
     }
 
-    pub(crate) fn run(&mut self, args: &Vec<String>, image: &str, cgroup: CgroupFactory) -> Result<(), Error> {
+    pub(crate) fn run(
+        &mut self,
+        args: &Vec<String>,
+        image: &str,
+        cgroup: CgroupFactory,
+    ) -> Result<(), Error> {
         let pid = self.start_process(args, image, cgroup)?;
         if !self.detach {
             waitpid(pid, None)?;
@@ -82,13 +91,16 @@ impl Jail {
         Ok(())
     }
 
-    fn start_process(&mut self, args: &Vec<String>, image: &str, cgroup: CgroupFactory) -> Result<Pid, Error> {
+    fn start_process(
+        &mut self,
+        args: &Vec<String>,
+        image: &str,
+        cgroup: CgroupFactory,
+    ) -> Result<Pid, Error> {
         let mut stack = [0u8; STACK_SIZE];
         let user_id = self.user_id;
         let pid = clone(
-            Box::new(|| {
-                start_parent_process(args, image, cgroup.clone(), user_id).unwrap()
-            }),
+            Box::new(|| start_parent_process(args, image, cgroup.clone(), user_id).unwrap()),
             stack.as_mut(),
             CloneFlags::empty(),
             Some(SIGCHLD as i32),

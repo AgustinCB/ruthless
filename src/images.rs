@@ -1,12 +1,12 @@
 use crate::mount::MOUNTS_FILE;
 use dirs::home_dir;
 use failure::Error;
-use std::fs::{metadata, read};
-use std::os::unix::io::AsRawFd;
-use std::path::PathBuf;
 use nix::dir::{Dir, Type};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
+use std::fs::{metadata, read};
+use std::os::unix::io::AsRawFd;
+use std::path::PathBuf;
 
 pub(crate) const BTRFS_IOCTL_MAGIC: u64 = 0x94;
 pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
@@ -28,27 +28,34 @@ impl BtrfsVolArgs {
                 name[i] = b;
             }
         }
-        BtrfsVolArgs {
-            fd,
-            name,
-        }
+        BtrfsVolArgs { fd, name }
     }
 }
 
-ioctl_write_ptr!(btrfs_ioc_snap_create, BTRFS_IOCTL_MAGIC, BTRFS_IOC_SNAP_CREATE, BtrfsVolArgs);
-ioctl_write_ptr!(btrfs_ioc_snap_delete, BTRFS_IOCTL_MAGIC, BTRFS_IOC_SNAP_DESTROY, BtrfsVolArgs);
+ioctl_write_ptr!(
+    btrfs_ioc_snap_create,
+    BTRFS_IOCTL_MAGIC,
+    BTRFS_IOC_SNAP_CREATE,
+    BtrfsVolArgs
+);
+ioctl_write_ptr!(
+    btrfs_ioc_snap_delete,
+    BTRFS_IOCTL_MAGIC,
+    BTRFS_IOC_SNAP_DESTROY,
+    BtrfsVolArgs
+);
 
 #[derive(Debug, Fail)]
 pub(crate) enum ImageError {
-    #[fail(display="No home directory")]
+    #[fail(display = "No home directory")]
     NoHomeDirectory,
-    #[fail(display="Invalid lib path encoding")]
+    #[fail(display = "Invalid lib path encoding")]
     InvalidLibPathEncoding,
-    #[fail(display="Lib path not mounted")]
+    #[fail(display = "Lib path not mounted")]
     LibPathNotMounted,
-    #[fail(display="Image doesn't exist {:?}", 0)]
+    #[fail(display = "Image doesn't exist {:?}", 0)]
     ImageDoesntExist(PathBuf),
-    #[fail(display="Image is not a directory {:?}", 0)]
+    #[fail(display = "Image is not a directory {:?}", 0)]
     ImageIsntDirectory(PathBuf),
 }
 
@@ -57,7 +64,12 @@ const LIB_LOCATION: &'static str = ".local/lib/ruthless/images";
 fn get_image_repository_path() -> Result<PathBuf, Error> {
     let home_path = home_dir().ok_or(ImageError::NoHomeDirectory)?;
     let lib_path = home_path.join(LIB_LOCATION);
-    let expected_content = format!(" {} btrfs ", lib_path.to_str().ok_or(ImageError::InvalidLibPathEncoding)?);
+    let expected_content = format!(
+        " {} btrfs ",
+        lib_path
+            .to_str()
+            .ok_or(ImageError::InvalidLibPathEncoding)?
+    );
     let mounts_bytes = read(MOUNTS_FILE)?;
     let mounts_contents = String::from_utf8(mounts_bytes)?;
     if mounts_contents.contains(&expected_content) {
@@ -77,7 +89,11 @@ impl ImageRepository {
         Ok(ImageRepository { path })
     }
 
-    pub(crate) fn get_image_location_for_process(&self, image: &str, name: &str) -> Result<PathBuf, Error> {
+    pub(crate) fn get_image_location_for_process(
+        &self,
+        image: &str,
+        name: &str,
+    ) -> Result<PathBuf, Error> {
         let file = metadata(image.clone());
         match file {
             Ok(m) => {
@@ -101,11 +117,7 @@ impl ImageRepository {
     }
 
     pub(crate) fn get_images(&self) -> Result<Vec<String>, Error> {
-        let mut repository = Dir::open(
-            &self.path,
-            OFlag::O_DIRECTORY,
-            Mode::S_IRUSR,
-        )?;
+        let mut repository = Dir::open(&self.path, OFlag::O_DIRECTORY, Mode::S_IRUSR)?;
         let mut result = Vec::new();
         for maybe_entry in repository.iter() {
             let entry = maybe_entry?;
@@ -116,29 +128,21 @@ impl ImageRepository {
                         result.push(name.to_owned())
                     }
                 }
-                _ => {},
+                _ => {}
             }
         }
         Ok(result)
     }
 
     pub(crate) fn delete_image(&self, name: &str) -> Result<(), Error> {
-        let repository = Dir::open(
-            &self.path,
-            OFlag::O_DIRECTORY,
-            Mode::S_IRWXU,
-        )?;
+        let repository = Dir::open(&self.path, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
         let args = BtrfsVolArgs::new(-1i64, name);
         unsafe { btrfs_ioc_snap_delete(repository.as_raw_fd() as i32, &args) }?;
         Ok(())
     }
 
     fn create_image_snapshot(&self, parent: &PathBuf, name: &str) -> Result<PathBuf, Error> {
-        let repository = Dir::open(
-            &self.path,
-            OFlag::O_DIRECTORY,
-            Mode::S_IRWXU,
-        )?;
+        let repository = Dir::open(&self.path, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
         let source = Dir::open(parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
         let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name);
         unsafe { btrfs_ioc_snap_create(repository.as_raw_fd() as i32, &args) }?;
