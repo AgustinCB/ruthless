@@ -47,12 +47,12 @@ impl CgroupFactory {
         CgroupFactory { name, options }
     }
 
-    pub(crate) fn build(self) -> Result<Cgroup, Error> {
+    pub(crate) fn build(&self) -> Result<Cgroup, Error> {
         let cgroup = Cgroup::new(self.name.as_str())?;
-        for o in self.options {
+        for o in self.options.iter() {
             match o {
                 CgroupOptions::PidsMax(max) => {
-                    cgroup.set_max_processes(max)?;
+                    cgroup.set_max_processes(max.clone())?;
                 }
             }
         }

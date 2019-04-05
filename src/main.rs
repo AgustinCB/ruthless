@@ -34,7 +34,7 @@ fn run_command(image: &str, command: &Vec<String>, detach: bool) -> Result<(), E
     let image_location = image_repository.get_image_location_for_process(image, name.as_str())?;
     let cgroup_factory = CgroupFactory::new(name, vec![CgroupOptions::PidsMax(10)]);
     let mut jail = Jail::new(detach);
-    jail.run(command, image_location.to_str().unwrap(), cgroup_factory)?;
+    jail.run(command, image_location.to_str().unwrap(), &cgroup_factory)?;
     Ok(())
 }
 

@@ -43,7 +43,7 @@ fn run(run_args: &Vec<String>) -> Result<isize, Error> {
 fn start_parent_process(
     args: &Vec<String>,
     image: &str,
-    cgroup_factory: CgroupFactory,
+    cgroup_factory: &CgroupFactory,
     user_id: Uid,
 ) -> Result<isize, Error> {
     let mut stack = [0u8; STACK_SIZE];
@@ -82,7 +82,7 @@ impl Jail {
         &mut self,
         args: &Vec<String>,
         image: &str,
-        cgroup: CgroupFactory,
+        cgroup: &CgroupFactory,
     ) -> Result<(), Error> {
         let pid = self.start_process(args, image, cgroup)?;
         if !self.detach {
@@ -95,12 +95,12 @@ impl Jail {
         &mut self,
         args: &Vec<String>,
         image: &str,
-        cgroup: CgroupFactory,
+        cgroup: &CgroupFactory,
     ) -> Result<Pid, Error> {
         let mut stack = [0u8; STACK_SIZE];
         let user_id = self.user_id;
         let pid = clone(
-            Box::new(|| start_parent_process(args, image, cgroup.clone(), user_id).unwrap()),
+            Box::new(|| start_parent_process(args, image, cgroup, user_id).unwrap()),
             stack.as_mut(),
             CloneFlags::empty(),
             Some(SIGCHLD as i32),
