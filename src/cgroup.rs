@@ -11,7 +11,6 @@ enum CgroupError {
 }
 
 const CGROUP_PROCS: &'static str = "cgroup.procs";
-const PIDS_MAX: &'static str = "pids.max";
 const CGROUP_FS: &'static str = "cgroup2";
 
 fn find_cgroups_path() -> Result<Option<String>, Error> {
@@ -52,7 +51,7 @@ impl CgroupFactory {
         for o in self.options.iter() {
             match o {
                 CgroupOptions::PidsMax(max) => {
-                    cgroup.set_max_processes(max.clone())?;
+                    cgroup.set_pids_max(max.clone())?;
                 }
             }
         }
@@ -63,6 +62,15 @@ impl CgroupFactory {
 pub(crate) struct Cgroup {
     parent: PathBuf,
     path: PathBuf,
+}
+
+macro_rules! cgroup_controller_interface{
+    ($self: ident, $path: expr, $name: ident) => {
+        fn $name(&$self, value: usize) -> Result<(), Error> {
+            write($self.parent.join($path), format!("{}", value))?;
+            Ok(())
+        }
+    }
 }
 
 impl Cgroup {
@@ -80,10 +88,7 @@ impl Cgroup {
         Ok(Cgroup { parent, path })
     }
 
-    fn set_max_processes(&self, max_pids: usize) -> Result<(), Error> {
-        write(self.parent.join(PIDS_MAX), format!("{}", max_pids))?;
-        Ok(())
-    }
+    cgroup_controller_interface!(self, "pids.max", set_pids_max);
 
     pub(crate) fn add_pid(&self, pid: u32) -> Result<(), Error> {
         write(self.path.join(CGROUP_PROCS), format!("{}", pid))?;
