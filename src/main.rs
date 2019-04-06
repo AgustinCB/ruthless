@@ -28,11 +28,16 @@ ruthless run [image] [command] # Run the given command on the image.
 ruthless image list # List images in the system
 ruthless image delete [image] # Deletes image [image]";
 
-fn run_command(image: &str, command: &Vec<String>, detach: bool) -> Result<(), Error> {
+fn run_command(
+    image: &str,
+    command: &Vec<String>,
+    detach: bool,
+    resource_options: &Vec<CgroupOptions>,
+) -> Result<(), Error> {
     let name = Uuid::new_v4().to_string();
     let image_repository = ImageRepository::new()?;
     let image_location = image_repository.get_image_location_for_process(image, name.as_str())?;
-    let cgroup_factory = CgroupFactory::new(name, vec![CgroupOptions::PidsMax(10)]);
+    let cgroup_factory = CgroupFactory::new(name, resource_options.clone());
     let mut jail = Jail::new(detach);
     jail.run(command, image_location.to_str().unwrap(), &cgroup_factory)?;
     Ok(())
@@ -61,11 +66,12 @@ fn main() {
         Ok(Command::ListImages) => list_images_command().unwrap(),
         Ok(Command::DeleteImage(image)) => delete_image_command(image.as_str()).unwrap(),
         Ok(Command::Run {
-            image,
             command,
             detach,
+            image,
+            resource_options,
         }) => {
-            run_command(image.as_str(), &command, detach).unwrap();
+            run_command(image.as_str(), &command, detach, &resource_options).unwrap();
         }
         Err(e) => {
             eprintln!("{}", e);

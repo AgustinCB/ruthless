@@ -32,7 +32,22 @@ fn ruthless_cgroup_path() -> String {
 
 #[derive(Clone)]
 pub(crate) enum CgroupOptions {
+    CpuWeight(usize),
+    CpuWeightNice(isize),
+    CpuMax(String, usize),
+    CpusetCpus(String),
+    CpusetCpusPartition(String),
+    CpusetMems(String),
+    IoMax(String),
+    IoWeight(String, usize),
+    MemoryHigh(String),
+    MemoryLow(usize),
+    MemoryMax(String),
+    MemoryMin(usize),
+    MemoryOomGroup(usize),
+    MemorySwapMax(String),
     PidsMax(usize),
+    RdmaMax(String),
 }
 
 #[derive(Clone)]
@@ -50,8 +65,53 @@ impl CgroupFactory {
         let cgroup = Cgroup::new(self.name.as_str())?;
         for o in self.options.iter() {
             match o {
+                CgroupOptions::CpuMax(max, period) => {
+                    cgroup.set_cpu_max(max.as_str(), period.clone() as isize)?;
+                }
+                CgroupOptions::CpuWeight(weight) => {
+                    cgroup.set_cpu_weight(weight)?;
+                }
+                CgroupOptions::CpuWeightNice(weight) => {
+                    cgroup.set_cpu_weight_nice(weight)?;
+                }
+                CgroupOptions::CpusetCpus(cpus) => {
+                    cgroup.set_cpuset_cpus(cpus.as_str())?;
+                }
+                CgroupOptions::CpusetCpusPartition(cpus) => {
+                    cgroup.set_cpuset_cpus_partition(cpus.as_str())?;
+                }
+                CgroupOptions::CpusetMems(mems) => {
+                    cgroup.set_cpuset_mems(mems.as_str())?;
+                }
+                CgroupOptions::IoMax(max) => {
+                    cgroup.set_io_max(max.as_str())?;
+                }
+                CgroupOptions::IoWeight(range, weight) => {
+                    cgroup.set_io_weight(range.as_str(), weight.clone() as isize)?;
+                }
+                CgroupOptions::MemoryHigh(high) => {
+                    cgroup.set_memory_high(high.as_str())?;
+                }
+                CgroupOptions::MemoryLow(low) => {
+                    cgroup.set_memory_low(low)?;
+                }
+                CgroupOptions::MemoryMax(max) => {
+                    cgroup.set_memory_max(max.as_str())?;
+                }
+                CgroupOptions::MemoryMin(min) => {
+                    cgroup.set_memory_min(min)?;
+                }
+                CgroupOptions::MemoryOomGroup(group) => {
+                    cgroup.set_memory_oom_group(group)?;
+                }
+                CgroupOptions::MemorySwapMax(max) => {
+                    cgroup.set_memory_swap_max(max.as_str())?;
+                }
                 CgroupOptions::PidsMax(max) => {
-                    cgroup.set_pids_max(max.clone())?;
+                    cgroup.set_pids_max(max)?;
+                }
+                CgroupOptions::RdmaMax(max) => {
+                    cgroup.set_rdma_max(max.as_str())?;
                 }
             }
         }
@@ -64,9 +124,18 @@ pub(crate) struct Cgroup {
     path: PathBuf,
 }
 
-macro_rules! cgroup_controller_interface{
+macro_rules! cgroup_controller_interface_string_number {
     ($self: ident, $path: expr, $name: ident) => {
-        fn $name(&$self, value: usize) -> Result<(), Error> {
+        fn $name(&$self, value1: &str, value2: isize) -> Result<(), Error> {
+            write($self.parent.join($path), format!("{} {}", value1, value2))?;
+            Ok(())
+        }
+    }
+}
+
+macro_rules! cgroup_controller_interface {
+    ($self: ident, $arg_type: ident, $path: expr, $name: ident) => {
+        fn $name(&$self, value: &$arg_type) -> Result<(), Error> {
             write($self.parent.join($path), format!("{}", value))?;
             Ok(())
         }
@@ -88,7 +157,22 @@ impl Cgroup {
         Ok(Cgroup { parent, path })
     }
 
-    cgroup_controller_interface!(self, "pids.max", set_pids_max);
+    cgroup_controller_interface!(self, usize, "cpu.weight", set_cpu_weight);
+    cgroup_controller_interface!(self, isize,"cpu.weight.nice", set_cpu_weight_nice);
+    cgroup_controller_interface_string_number!(self, "cpu.max", set_cpu_max);
+    cgroup_controller_interface!(self, str,"cpuset.cpus", set_cpuset_cpus);
+    cgroup_controller_interface!(self, str,"cpuset.cpus.partition", set_cpuset_cpus_partition);
+    cgroup_controller_interface!(self, str,"cpuset.mems", set_cpuset_mems);
+    cgroup_controller_interface!(self, str, "io.max", set_io_max);
+    cgroup_controller_interface_string_number!(self, "io.weight", set_io_weight);
+    cgroup_controller_interface!(self, str, "memory.high", set_memory_high);
+    cgroup_controller_interface!(self, usize, "memory.low", set_memory_low);
+    cgroup_controller_interface!(self, str, "memory.max", set_memory_max);
+    cgroup_controller_interface!(self, usize, "memory.min", set_memory_min);
+    cgroup_controller_interface!(self, usize, "memory.oom.group", set_memory_oom_group);
+    cgroup_controller_interface!(self, str, "memory.swap.max", set_memory_swap_max);
+    cgroup_controller_interface!(self, usize, "pids.max", set_pids_max);
+    cgroup_controller_interface!(self, str, "rdma.max", set_rdma_max);
 
     pub(crate) fn add_pid(&self, pid: u32) -> Result<(), Error> {
         write(self.path.join(CGROUP_PROCS), format!("{}", pid))?;
