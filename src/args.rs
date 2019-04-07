@@ -41,6 +41,7 @@ pub(crate) enum ArgumentParsingError {
 
 pub(crate) enum Command {
     DeleteImage(String),
+    Help(Option<String>),
     ListImages,
     Run {
         command: Vec<String>,
@@ -178,6 +179,21 @@ fn parse_run_subcommand<I: Iterator<Item = String>>(
     })
 }
 
+fn parse_help<I: Iterator<Item=String>>(source: I) -> Result<Command, ArgumentParsingError> {
+    let next_arguments: Vec<String> = source.collect();
+    Ok(Command::Help(if next_arguments.len() == 0 {
+        None
+    } else {
+        let command = next_arguments.join(" ");
+        Some(match command.as_str() {
+            "run" | "image list" | "image delete" => {
+                command
+            }
+            _ => Err(ArgumentParsingError::UnexpectedCommand(command))?,
+        })
+    }))
+}
+
 impl TryFrom<Vec<String>> for Command {
     type Error = ArgumentParsingError;
 
@@ -187,6 +203,7 @@ impl TryFrom<Vec<String>> for Command {
             .next()
             .ok_or(ArgumentParsingError::NotEnoughArguments)?;
         match leading.as_str() {
+            "help" => parse_help(source),
             "image" => parse_image_subcommand(source),
             "run" => parse_run_subcommand(source),
             c => Err(ArgumentParsingError::UnexpectedCommand(c.to_owned())),
