@@ -13,6 +13,7 @@ mod args;
 mod cgroup;
 mod images;
 mod jail;
+mod jaillogs;
 mod mount;
 
 use args::Command;
@@ -37,6 +38,8 @@ Options:
 
 -d, --detach
 \tDetach the process container and run it in the background.
+-n [name], --name=[name]
+\tRun the container with a specific name.
 --cpu-max=[cpu max]
 \tSet the value to the interface cpu.max.
 --cpu-weight=[cpu weight]
@@ -82,9 +85,10 @@ fn run_command(
     image: &str,
     command: &Vec<String>,
     detach: bool,
+    name: Option<String>,
     resource_options: &Vec<CgroupOptions>,
 ) -> Result<(), Error> {
-    let name = Uuid::new_v4().to_string();
+    let name = name.unwrap_or(Uuid::new_v4().to_string());
     let image_repository = ImageRepository::new()?;
     let image_location = image_repository.get_image_location_for_process(image, name.as_str())?;
     let cgroup_factory = CgroupFactory::new(name, resource_options.clone());
@@ -130,9 +134,10 @@ fn main() {
             command,
             detach,
             image,
+            name,
             resource_options,
         }) => {
-            run_command(image.as_str(), &command, detach, &resource_options).unwrap();
+            run_command(image.as_str(), &command, detach, name, &resource_options).unwrap();
         }
         Err(e) => {
             eprintln!("{}", e);

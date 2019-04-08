@@ -1,4 +1,5 @@
 use crate::cgroup::CgroupFactory;
+use crate::jaillogs::JailLogs;
 use crate::mount::Mount;
 use failure::Error;
 use nix::sched::{clone, CloneFlags};
@@ -23,17 +24,26 @@ fn set_user_map(user_id: Uid) -> Result<(), Error> {
     Ok(())
 }
 
-fn run(run_args: &Vec<String>) -> Result<isize, Error> {
+fn run(run_args: &Vec<String>, redirect_logs: bool) -> Result<isize, Error> {
     let _proc_mount = Mount::new(
         PROC_RESOURCE.to_owned(),
         PROC_TARGET.to_owned(),
         PROC_FS.to_owned(),
     )?;
-    let exit_status = Command::new(run_args[0].clone())
+    let mut command = Command::new(run_args[0].clone());
+    command
         .args(run_args[1..].into_iter())
         .env_clear()
         .env(PATH_ENV_VARIABLE, CONTAINER_PATH)
-        .current_dir("/")
+        .current_dir("/");
+    if redirect_logs {
+        let logs = JailLogs::new()?;
+        command
+            .stdin(logs.stdin()?)
+            .stdout(logs.stdout()?)
+            .stderr(logs.stderr()?);
+    };
+    let exit_status = command
         .spawn()
         .expect(COMMAND_ERROR)
         .wait()?;
@@ -45,6 +55,7 @@ fn start_parent_process(
     image: &str,
     cgroup_factory: &CgroupFactory,
     user_id: Uid,
+    redirect_logs: bool,
 ) -> Result<isize, Error> {
     let mut stack = [0u8; STACK_SIZE];
     let cgroup = cgroup_factory.build()?;
@@ -53,8 +64,8 @@ fn start_parent_process(
             cgroup.add_pid(getpid().as_raw() as u32).unwrap();
             set_user_map(user_id).unwrap();
             setuid(Uid::from_raw(0)).unwrap();
-            chroot(image).unwrap();
-            run(args).unwrap()
+            chroot(image.clone()).unwrap();
+            run(args, redirect_logs).unwrap()
         }),
         stack.as_mut(),
         CloneFlags::CLONE_NEWNS
@@ -100,7 +111,9 @@ impl Jail {
         let mut stack = [0u8; STACK_SIZE];
         let user_id = self.user_id;
         let pid = clone(
-            Box::new(|| start_parent_process(args, image, cgroup, user_id).unwrap()),
+            Box::new(|| {
+                start_parent_process(args, image, cgroup, user_id, self.detach).unwrap()
+            }),
             stack.as_mut(),
             CloneFlags::empty(),
             Some(SIGCHLD as i32),

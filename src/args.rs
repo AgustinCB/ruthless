@@ -27,6 +27,8 @@ pub(crate) enum ArgumentParsingError {
     UnexpectedCommand(String),
     #[fail(display = "Run command should contain an image")]
     MissingImage,
+    #[fail(display = "Missing container name.")]
+    MissingContainerName,
     #[fail(display = "An image subcommand is expected.")]
     NoImageSubCommand,
     #[fail(display = "Invalid image subcommand {}.", 0)]
@@ -47,6 +49,7 @@ pub(crate) enum Command {
         command: Vec<String>,
         detach: bool,
         image: String,
+        name: Option<String>,
         resource_options: Vec<CgroupOptions>,
     },
 }
@@ -151,16 +154,25 @@ fn parse_cgroup_option(argument: &str, resource_options: &mut Vec<CgroupOptions>
 }
 
 fn parse_run_subcommand<I: Iterator<Item = String>>(
-    source: I,
+    mut source: I,
 ) -> Result<Command, ArgumentParsingError> {
     let mut command = Vec::new();
     let mut detach = false;
     let mut image = None;
+    let mut name = None;
     let mut resource_options = Vec::new();
-    for s in source {
+    while let Some(s) = source.next() {
         match (s.as_str(), &image) {
             ("-d", _) | ("--detach", _) if command.len() == 0 => {
                 detach = true;
+            }
+            ("-n", _) if command.len() == 0 => {
+                name = Some(
+                    source.next().ok_or(ArgumentParsingError::MissingContainerName)?
+                );
+            }
+            (s, _) if command.len() == 0 && s.starts_with("--name=") => {
+                name = Some(s.replace("--name=", "").to_owned());
             }
             (s, _) if command.len() == 0 && s.starts_with("--") => {
                 parse_cgroup_option(s, &mut resource_options)?;
@@ -174,6 +186,7 @@ fn parse_run_subcommand<I: Iterator<Item = String>>(
     Ok(Command::Run {
         command,
         detach,
+        name,
         resource_options,
         image: image.ok_or(ArgumentParsingError::MissingImage)?,
     })
