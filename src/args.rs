@@ -29,6 +29,8 @@ pub(crate) enum ArgumentParsingError {
     MissingImage,
     #[fail(display = "Missing container name.")]
     MissingContainerName,
+    #[fail(display = "A container subcommand is expected.")]
+    NoContainerSubCommand,
     #[fail(display = "An image subcommand is expected.")]
     NoImageSubCommand,
     #[fail(display = "Invalid image subcommand {}.", 0)]
@@ -42,9 +44,12 @@ pub(crate) enum ArgumentParsingError {
 }
 
 pub(crate) enum Command {
+    DeleteContainer(String),
     DeleteImage(String),
     Help(Option<String>),
+    ListContainers,
     ListImages,
+    Logs(String),
     Run {
         command: Vec<String>,
         detach: bool,
@@ -52,6 +57,23 @@ pub(crate) enum Command {
         name: Option<String>,
         resource_options: Vec<CgroupOptions>,
     },
+}
+
+fn parse_container_subcommand<I: Iterator<Item = String>>(
+    mut source: I,
+) -> Result<Command, ArgumentParsingError> {
+    let subcommand = source
+        .next()
+        .ok_or(ArgumentParsingError::NoContainerSubCommand)?;
+    match subcommand.as_str() {
+        "list" => Ok(Command::ListContainers),
+        "delete" => Ok(Command::DeleteContainer(
+            source
+                .next()
+                .ok_or(ArgumentParsingError::MissingContainerName)?,
+        )),
+        c => Err(ArgumentParsingError::InvalidImageSubCommand(c.to_owned())),
+    }
 }
 
 fn parse_image_subcommand<I: Iterator<Item = String>>(
@@ -73,47 +95,69 @@ fn parse_image_subcommand<I: Iterator<Item = String>>(
 
 macro_rules! handle_resource_option {
     ($number_type: ident, $actual_option: ident, $string_option: expr, $cgroup_option: ident, $resource_options: ident) => {
-        let v = $number_type::from_str(
-            &$actual_option.replace($string_option, "")
-        )
+        let v = $number_type::from_str(&$actual_option.replace($string_option, ""))
             .map_err(|_| ArgumentParsingError::CantParseNumber($actual_option.to_owned()))?;
         $resource_options.push(CgroupOptions::$cgroup_option(v));
-    }
+    };
 }
 
 macro_rules! handle_resource_option_string {
     ($actual_option: ident, $string_option: expr, $cgroup_option: ident, $resource_options: ident) => {
         $resource_options.push(CgroupOptions::$cgroup_option(
-            $actual_option.replace($string_option, "").to_owned()
+            $actual_option.replace($string_option, "").to_owned(),
         ));
-    }
+    };
 }
 
 macro_rules! handle_resource_option_string_number {
     ($number_type: ident, $actual_option: ident, $string_option: expr, $cgroup_option: ident, $resource_options: ident) => {
-        let options: Vec<String> = $actual_option.replace($string_option, "").split(",").map(|v| v.to_owned()).collect();
+        let options: Vec<String> = $actual_option
+            .replace($string_option, "")
+            .split(",")
+            .map(|v| v.to_owned())
+            .collect();
         let period = $number_type::from_str(options[1].as_str())
             .map_err(|_| ArgumentParsingError::CantParseNumber($actual_option.to_owned()))?;
         $resource_options.push(CgroupOptions::$cgroup_option(options[0].clone(), period));
-    }
+    };
 }
 
-fn parse_cgroup_option(argument: &str, resource_options: &mut Vec<CgroupOptions>) -> Result<(), ArgumentParsingError> {
+fn parse_cgroup_option(
+    argument: &str,
+    resource_options: &mut Vec<CgroupOptions>,
+) -> Result<(), ArgumentParsingError> {
     match argument {
         s if s.starts_with(CPU_MAX_OPTION) => {
-            handle_resource_option_string_number!(usize, s, CPU_MAX_OPTION, CpuMax, resource_options);
+            handle_resource_option_string_number!(
+                usize,
+                s,
+                CPU_MAX_OPTION,
+                CpuMax,
+                resource_options
+            );
         }
         s if s.starts_with(CPU_WEIGHT_OPTION) => {
             handle_resource_option!(usize, s, CPU_WEIGHT_OPTION, CpuWeight, resource_options);
         }
         s if s.starts_with(CPU_WEIGHT_NICE_OPTION) => {
-            handle_resource_option!(isize, s, CPU_WEIGHT_NICE_OPTION, CpuWeightNice, resource_options);
+            handle_resource_option!(
+                isize,
+                s,
+                CPU_WEIGHT_NICE_OPTION,
+                CpuWeightNice,
+                resource_options
+            );
         }
         s if s.starts_with(CPUSET_CPUS_OPTION) => {
             handle_resource_option_string!(s, CPUSET_CPUS_OPTION, CpusetCpus, resource_options);
         }
         s if s.starts_with(CPUSET_CPUS_PARTITION_OPTION) => {
-            handle_resource_option_string!(s, CPUSET_CPUS_PARTITION_OPTION, CpusetCpusPartition, resource_options);
+            handle_resource_option_string!(
+                s,
+                CPUSET_CPUS_PARTITION_OPTION,
+                CpusetCpusPartition,
+                resource_options
+            );
         }
         s if s.starts_with(CPUSET_MEMS_OPTION) => {
             handle_resource_option_string!(s, CPUSET_MEMS_OPTION, CpusetMems, resource_options);
@@ -122,7 +166,13 @@ fn parse_cgroup_option(argument: &str, resource_options: &mut Vec<CgroupOptions>
             handle_resource_option_string!(s, IO_MAX_OPTION, IoMax, resource_options);
         }
         s if s.starts_with(IO_WEIGHT_OPTION) => {
-            handle_resource_option_string_number!(usize, s, IO_WEIGHT_OPTION, IoWeight, resource_options);
+            handle_resource_option_string_number!(
+                usize,
+                s,
+                IO_WEIGHT_OPTION,
+                IoWeight,
+                resource_options
+            );
         }
         s if s.starts_with(MEMORY_HIGH_OPTION) => {
             handle_resource_option_string!(s, MEMORY_HIGH_OPTION, MemoryHigh, resource_options);
@@ -137,10 +187,21 @@ fn parse_cgroup_option(argument: &str, resource_options: &mut Vec<CgroupOptions>
             handle_resource_option!(usize, s, MEMORY_MIN_OPTION, MemoryMin, resource_options);
         }
         s if s.starts_with(MEMORY_OOM_GROUP_OPTION) => {
-            handle_resource_option!(usize, s, MEMORY_OOM_GROUP_OPTION, MemoryOomGroup, resource_options);
+            handle_resource_option!(
+                usize,
+                s,
+                MEMORY_OOM_GROUP_OPTION,
+                MemoryOomGroup,
+                resource_options
+            );
         }
         s if s.starts_with(MEMORY_SWAP_MAX_OPTION) => {
-            handle_resource_option_string!(s, MEMORY_SWAP_MAX_OPTION, MemorySwapMax, resource_options);
+            handle_resource_option_string!(
+                s,
+                MEMORY_SWAP_MAX_OPTION,
+                MemorySwapMax,
+                resource_options
+            );
         }
         s if s.starts_with(PIDS_MAX_OPTION) => {
             handle_resource_option!(usize, s, PIDS_MAX_OPTION, PidsMax, resource_options);
@@ -168,7 +229,9 @@ fn parse_run_subcommand<I: Iterator<Item = String>>(
             }
             ("-n", _) if command.len() == 0 => {
                 name = Some(
-                    source.next().ok_or(ArgumentParsingError::MissingContainerName)?
+                    source
+                        .next()
+                        .ok_or(ArgumentParsingError::MissingContainerName)?,
                 );
             }
             (s, _) if command.len() == 0 && s.starts_with("--name=") => {
@@ -192,19 +255,24 @@ fn parse_run_subcommand<I: Iterator<Item = String>>(
     })
 }
 
-fn parse_help<I: Iterator<Item=String>>(source: I) -> Result<Command, ArgumentParsingError> {
+fn parse_help<I: Iterator<Item = String>>(source: I) -> Result<Command, ArgumentParsingError> {
     let next_arguments: Vec<String> = source.collect();
     Ok(Command::Help(if next_arguments.len() == 0 {
         None
     } else {
         let command = next_arguments.join(" ");
         Some(match command.as_str() {
-            "run" | "image list" | "image delete" => {
-                command
-            }
+            "run" | "image list" | "image delete" => command,
             _ => Err(ArgumentParsingError::UnexpectedCommand(command))?,
         })
     }))
+}
+
+fn parse_logs<I: Iterator<Item = String>>(mut source: I) -> Result<Command, ArgumentParsingError> {
+    let container = source
+        .next()
+        .ok_or(ArgumentParsingError::MissingContainerName)?;
+    Ok(Command::Logs(container))
 }
 
 impl TryFrom<Vec<String>> for Command {
@@ -216,8 +284,10 @@ impl TryFrom<Vec<String>> for Command {
             .next()
             .ok_or(ArgumentParsingError::NotEnoughArguments)?;
         match leading.as_str() {
+            "container" => parse_container_subcommand(source),
             "help" => parse_help(source),
             "image" => parse_image_subcommand(source),
+            "logs" => parse_logs(source),
             "run" => parse_run_subcommand(source),
             c => Err(ArgumentParsingError::UnexpectedCommand(c.to_owned())),
         }

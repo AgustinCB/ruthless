@@ -16,20 +16,31 @@ mod jail;
 mod jaillogs;
 mod mount;
 
+use crate::cgroup::{get_active_cgroups, terminate_cgroup_processes};
 use args::Command;
 use cgroup::{CgroupFactory, CgroupOptions};
 use images::ImageRepository;
 use jail::Jail;
+use std::fs::read_to_string;
 
 const USAGE: &'static str =
     "Ruthless is a small application to run rootless, daemonless containers.
 
 Possible commands:
 ruthless run [image] [command] # Run the given command on the image.
+ruthless logs [container] # Show logs of a container
+ruthless container delete [container] # Kill running containers
+ruthless container list # List all running containers
 ruthless image list # List images in the system
 ruthless image delete [image] # Deletes image [image]
 ruthless help # See this message
 ruthless help [command] # Describe what an specific command does";
+const USAGE_CONTAINER_DELETE: &'static str = "Usage: ruthless container delete [container]
+
+Attempts to delete a running container by killing the processes running in it.";
+const USAGE_CONTAINER_LIST: &'static str = "Usage: ruthless container list
+
+List all the containers that are currently running in the system";
 const USAGE_RUN: &'static str = "Usage: ruthless run [options] [image] [command]
 
 Run a container with the process [command] over the file system [image]
@@ -80,6 +91,10 @@ List all the images available right now in the repository.";
 const USAGE_IMAGE_DELETE: &'static str = "Usage: ruthless image delete [image]
 
 Attempts to delete the image [image] from the repository.";
+const USAGE_LOGS: &'static str = "Usage: ruthless logs [container]
+
+Prints the standard output of the container into the current standard output and the standard error
+of the container into the current standard error.";
 
 fn run_command(
     image: &str,
@@ -97,6 +112,21 @@ fn run_command(
     Ok(())
 }
 
+fn delete_container_command(container: &str) -> Result<(), Error> {
+    terminate_cgroup_processes(container)
+}
+
+fn delete_image_command(image: &str) -> Result<(), Error> {
+    let image_repository = ImageRepository::new()?;
+    image_repository.delete_image(image)?;
+    Ok(())
+}
+
+fn list_containers_command() -> Result<(), Error> {
+    get_active_cgroups()?.iter().for_each(|c| println!("{}", c));
+    Ok(())
+}
+
 fn list_images_command() -> Result<(), Error> {
     let image_repository = ImageRepository::new()?;
     for image in image_repository.get_images()? {
@@ -105,9 +135,11 @@ fn list_images_command() -> Result<(), Error> {
     Ok(())
 }
 
-fn delete_image_command(image: &str) -> Result<(), Error> {
+fn show_container_logs(container: &str) -> Result<(), Error> {
     let image_repository = ImageRepository::new()?;
-    image_repository.delete_image(image)?;
+    let logs_path = image_repository.get_logs_path(container);
+    println!("{}", read_to_string(logs_path.join("stdout"))?.trim());
+    eprintln!("{}", read_to_string(logs_path.join("stderr"))?.trim());
     Ok(())
 }
 
@@ -117,19 +149,25 @@ fn main() {
     args.next();
     let arguments: Vec<String> = args.collect();
     match Command::try_from(arguments) {
+        Ok(Command::DeleteContainer(container)) => {
+            delete_container_command(container.as_str()).unwrap()
+        }
+        Ok(Command::DeleteImage(image)) => delete_image_command(image.as_str()).unwrap(),
         Ok(Command::Help(None)) => {
             println!("{}", USAGE);
         }
-        Ok(Command::Help(Some(c))) => {
-            match c.as_str() {
-                "run" => println!("{}", USAGE_RUN),
-                "image list" => println!("{}", USAGE_IMAGE_LIST),
-                "image delete" => println!("{}", USAGE_IMAGE_DELETE),
-                _ => panic!("Invalid command.\n\n{}", USAGE),
-            }
-        }
+        Ok(Command::Help(Some(c))) => match c.as_str() {
+            "container list" => println!("{}", USAGE_CONTAINER_LIST),
+            "container delete" => println!("{}", USAGE_CONTAINER_DELETE),
+            "image delete" => println!("{}", USAGE_IMAGE_DELETE),
+            "image list" => println!("{}", USAGE_IMAGE_LIST),
+            "logs" => println!("{}", USAGE_LOGS),
+            "run" => println!("{}", USAGE_RUN),
+            _ => panic!("Invalid command.\n\n{}", USAGE),
+        },
+        Ok(Command::ListContainers) => list_containers_command().unwrap(),
         Ok(Command::ListImages) => list_images_command().unwrap(),
-        Ok(Command::DeleteImage(image)) => delete_image_command(image.as_str()).unwrap(),
+        Ok(Command::Logs(c)) => show_container_logs(&c).unwrap(),
         Ok(Command::Run {
             command,
             detach,

@@ -1,8 +1,8 @@
 use failure::Error;
-use std::fs::{File, create_dir};
+use std::fs::{create_dir, File};
 use std::path::{Path, PathBuf};
 
-const LOGS_PATH: &'static str = "/tmp/ruthless";
+pub(crate) const LOGS_PATH: &'static str = "/tmp/ruthless";
 
 pub(crate) struct JailLogs {
     folder: PathBuf,

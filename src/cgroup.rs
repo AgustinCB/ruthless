@@ -1,8 +1,12 @@
 use crate::mount::MOUNTS_FILE;
 use failure::Error;
-use nix::unistd::getuid;
-use std::fs::{create_dir, read_to_string, remove_dir, write};
+use nix::errno::Errno;
+use nix::sys::signal::{kill, SIGTERM};
+use nix::unistd::{getuid, Pid};
+use nix::Error as SyscallError;
+use std::fs::{create_dir, read_dir, read_to_string, remove_dir, write, DirEntry};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 #[derive(Debug, Fail)]
 enum CgroupError {
@@ -28,6 +32,53 @@ fn ruthless_cgroup_path() -> String {
         "user.slice/user-{}.slice/user@{}.service/ruthless",
         uid, uid
     )
+}
+
+fn get_ruthless_cgroup_path() -> Result<PathBuf, Error> {
+    let cgroup_path = find_cgroups_path()?.ok_or(CgroupError::CgroupNotMounted)?;
+    let ruthless_cgroup = Path::new(&cgroup_path).join(ruthless_cgroup_path());
+    Ok(ruthless_cgroup)
+}
+
+pub(crate) fn get_active_cgroups() -> Result<Vec<String>, Error> {
+    let containers_location = get_ruthless_cgroup_path()?;
+    let cgroup_content: Vec<DirEntry> =
+        read_dir(containers_location)?.collect::<Result<Vec<DirEntry>, _>>()?;
+    let mut result = Vec::new();
+    for entry in cgroup_content {
+        if entry.file_type()?.is_dir() {
+            result.push(
+                entry
+                    .file_name()
+                    .to_str()
+                    .unwrap()
+                    .to_owned()
+                    .replace("-core", ""),
+            )
+        }
+    }
+    Ok(result)
+}
+
+pub(crate) fn terminate_cgroup_processes(container_name: &str) -> Result<(), Error> {
+    let containers_location = get_ruthless_cgroup_path()?;
+    let container_location = containers_location.join(format!(
+        "{}-core/{}-processes",
+        container_name, container_name
+    ));
+    let pids: Vec<i32> = read_to_string(container_location.join("cgroup.procs"))?
+        .trim()
+        .split("\n")
+        .map(|p| i32::from_str(p))
+        .collect::<Result<Vec<i32>, _>>()?;
+    for p in pids {
+        match kill(Pid::from_raw(p), SIGTERM) {
+            Ok(()) => {}
+            Err(SyscallError::Sys(Errno::ESRCH)) => {}
+            Err(e) => Err(e)?,
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -144,8 +195,7 @@ macro_rules! cgroup_controller_interface {
 
 impl Cgroup {
     fn new(name: &str) -> Result<Cgroup, Error> {
-        let cgroup_path = find_cgroups_path()?.ok_or(CgroupError::CgroupNotMounted)?;
-        let ruthless_cgroup = Path::new(&cgroup_path).join(ruthless_cgroup_path());
+        let ruthless_cgroup = get_ruthless_cgroup_path()?;
         let parent_name = format!("{}-core", name);
         let cgroup_name = format!("{}-processes", name);
         let parent = ruthless_cgroup.join(parent_name);
@@ -158,11 +208,16 @@ impl Cgroup {
     }
 
     cgroup_controller_interface!(self, usize, "cpu.weight", set_cpu_weight);
-    cgroup_controller_interface!(self, isize,"cpu.weight.nice", set_cpu_weight_nice);
+    cgroup_controller_interface!(self, isize, "cpu.weight.nice", set_cpu_weight_nice);
     cgroup_controller_interface_string_number!(self, "cpu.max", set_cpu_max);
-    cgroup_controller_interface!(self, str,"cpuset.cpus", set_cpuset_cpus);
-    cgroup_controller_interface!(self, str,"cpuset.cpus.partition", set_cpuset_cpus_partition);
-    cgroup_controller_interface!(self, str,"cpuset.mems", set_cpuset_mems);
+    cgroup_controller_interface!(self, str, "cpuset.cpus", set_cpuset_cpus);
+    cgroup_controller_interface!(
+        self,
+        str,
+        "cpuset.cpus.partition",
+        set_cpuset_cpus_partition
+    );
+    cgroup_controller_interface!(self, str, "cpuset.mems", set_cpuset_mems);
     cgroup_controller_interface!(self, str, "io.max", set_io_max);
     cgroup_controller_interface_string_number!(self, "io.weight", set_io_weight);
     cgroup_controller_interface!(self, str, "memory.high", set_memory_high);

@@ -1,3 +1,4 @@
+use crate::jaillogs::LOGS_PATH;
 use crate::mount::MOUNTS_FILE;
 use dirs::home_dir;
 use failure::Error;
@@ -80,13 +81,17 @@ fn get_image_repository_path() -> Result<PathBuf, Error> {
 }
 
 pub(crate) struct ImageRepository {
-    path: PathBuf,
+    pub path: PathBuf,
 }
 
 impl ImageRepository {
     pub(crate) fn new() -> Result<ImageRepository, Error> {
         let path = get_image_repository_path()?;
         Ok(ImageRepository { path })
+    }
+
+    pub(crate) fn get_logs_path(&self, container: &str) -> PathBuf {
+        self.path.join(container).join(LOGS_PATH[1..].to_owned())
     }
 
     pub(crate) fn get_image_location_for_process(

@@ -43,10 +43,7 @@ fn run(run_args: &Vec<String>, redirect_logs: bool) -> Result<isize, Error> {
             .stdout(logs.stdout()?)
             .stderr(logs.stderr()?);
     };
-    let exit_status = command
-        .spawn()
-        .expect(COMMAND_ERROR)
-        .wait()?;
+    let exit_status = command.spawn().expect(COMMAND_ERROR).wait()?;
     Ok(exit_status.code().unwrap_or(0) as isize)
 }
 
@@ -111,9 +108,7 @@ impl Jail {
         let mut stack = [0u8; STACK_SIZE];
         let user_id = self.user_id;
         let pid = clone(
-            Box::new(|| {
-                start_parent_process(args, image, cgroup, user_id, self.detach).unwrap()
-            }),
+            Box::new(|| start_parent_process(args, image, cgroup, user_id, self.detach).unwrap()),
             stack.as_mut(),
             CloneFlags::empty(),
             Some(SIGCHLD as i32),
