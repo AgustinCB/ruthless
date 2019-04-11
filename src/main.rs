@@ -15,6 +15,7 @@ mod images;
 mod jail;
 mod jaillogs;
 mod mount;
+mod oci_image;
 
 use crate::cgroup::{get_active_cgroups, terminate_cgroup_processes};
 use args::Command;
@@ -22,6 +23,7 @@ use cgroup::{CgroupFactory, CgroupOptions};
 use images::ImageRepository;
 use jail::Jail;
 use std::fs::read_to_string;
+use crate::oci_image::OCIImage;
 
 const USAGE: &'static str =
     "Ruthless is a small application to run rootless, daemonless containers.
@@ -33,6 +35,7 @@ ruthless container delete [container] # Kill running containers
 ruthless container list # List all running containers
 ruthless image list # List images in the system
 ruthless image delete [image] # Deletes image [image]
+ruthless import [tarball] # Import a OCI compatible tarball into the image repository
 ruthless help # See this message
 ruthless help [command] # Describe what an specific command does";
 const USAGE_CONTAINER_DELETE: &'static str = "Usage: ruthless container delete [container]
@@ -91,6 +94,9 @@ List all the images available right now in the repository.";
 const USAGE_IMAGE_DELETE: &'static str = "Usage: ruthless image delete [image]
 
 Attempts to delete the image [image] from the repository.";
+const USAGE_IMPORT: &'static str = "Usage: ruthless import [tarball]
+
+Import a OCI tarball image into the ruthless image repository.";
 const USAGE_LOGS: &'static str = "Usage: ruthless logs [container]
 
 Prints the standard output of the container into the current standard output and the standard error
@@ -120,6 +126,12 @@ fn delete_image_command(image: &str) -> Result<(), Error> {
     let image_repository = ImageRepository::new()?;
     image_repository.delete_image(image)?;
     Ok(())
+}
+
+fn import_command(tarball: &str) -> Result<(), Error> {
+    let image_repository = ImageRepository::new()?;
+    let oci_image = OCIImage::new(tarball)?;
+    oci_image.import(&image_repository)
 }
 
 fn list_containers_command() -> Result<(), Error> {
@@ -161,10 +173,12 @@ fn main() {
             "container delete" => println!("{}", USAGE_CONTAINER_DELETE),
             "image delete" => println!("{}", USAGE_IMAGE_DELETE),
             "image list" => println!("{}", USAGE_IMAGE_LIST),
+            "import" => println!("{}", USAGE_IMPORT),
             "logs" => println!("{}", USAGE_LOGS),
             "run" => println!("{}", USAGE_RUN),
             _ => panic!("Invalid command.\n\n{}", USAGE),
         },
+        Ok(Command::Import(tarball)) => import_command(tarball.as_str()).unwrap(),
         Ok(Command::ListContainers) => list_containers_command().unwrap(),
         Ok(Command::ListImages) => list_images_command().unwrap(),
         Ok(Command::Logs(c)) => show_container_logs(&c).unwrap(),

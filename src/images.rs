@@ -146,6 +146,14 @@ impl ImageRepository {
         Ok(())
     }
 
+    pub(crate) fn create_image_from_path(&self, _name: &str, _path: &PathBuf) -> Result<(), Error> {
+        Ok(())
+    }
+
+    pub(crate) fn create_layer_for_image(&self, _name: &str, _parent: &str, _path: &PathBuf) -> Result<(), Error> {
+        Ok(())
+    }
+
     fn create_image_snapshot(&self, parent: &PathBuf, name: &str) -> Result<PathBuf, Error> {
         let repository = Dir::open(&self.path, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
         let source = Dir::open(parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;

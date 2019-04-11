@@ -25,18 +25,20 @@ pub(crate) enum ArgumentParsingError {
     NotEnoughArguments,
     #[fail(display = "Unexpected command {}", 0)]
     UnexpectedCommand(String),
-    #[fail(display = "Run command should contain an image")]
-    MissingImage,
     #[fail(display = "Missing container name.")]
     MissingContainerName,
+    #[fail(display = "Run command should contain an image")]
+    MissingImage,
+    #[fail(display = "Missing image to delete.")]
+    MissingImageToDelete,
+    #[fail(display = "Missing tarball location.")]
+    MissingTarballLocation,
     #[fail(display = "A container subcommand is expected.")]
     NoContainerSubCommand,
     #[fail(display = "An image subcommand is expected.")]
     NoImageSubCommand,
     #[fail(display = "Invalid image subcommand {}.", 0)]
     InvalidImageSubCommand(String),
-    #[fail(display = "Missing image to delete.")]
-    MissingImageToDelete,
     #[fail(display = "Can't parse argument {}.", 0)]
     CantParseNumber(String),
     #[fail(display = "Invalid argument {}.", 0)]
@@ -47,6 +49,7 @@ pub(crate) enum Command {
     DeleteContainer(String),
     DeleteImage(String),
     Help(Option<String>),
+    Import(String),
     ListContainers,
     ListImages,
     Logs(String),
@@ -287,6 +290,11 @@ impl TryFrom<Vec<String>> for Command {
             "container" => parse_container_subcommand(source),
             "help" => parse_help(source),
             "image" => parse_image_subcommand(source),
+            "import" => {
+                let tarball = source.next()
+                    .ok_or(ArgumentParsingError::MissingTarballLocation)?;
+                Ok(Command::Import(tarball))
+            }
             "logs" => parse_logs(source),
             "run" => parse_run_subcommand(source),
             c => Err(ArgumentParsingError::UnexpectedCommand(c.to_owned())),
