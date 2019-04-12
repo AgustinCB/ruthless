@@ -61,7 +61,7 @@ fn start_parent_process(
             cgroup.add_pid(getpid().as_raw() as u32).unwrap();
             set_user_map(user_id).unwrap();
             setuid(Uid::from_raw(0)).unwrap();
-            chroot(image.clone()).unwrap();
+            chroot(image).unwrap();
             run(args, redirect_logs).unwrap()
         }),
         stack.as_mut(),

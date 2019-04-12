@@ -291,7 +291,8 @@ impl TryFrom<Vec<String>> for Command {
             "help" => parse_help(source),
             "image" => parse_image_subcommand(source),
             "import" => {
-                let tarball = source.next()
+                let tarball = source
+                    .next()
                     .ok_or(ArgumentParsingError::MissingTarballLocation)?;
                 Ok(Command::Import(tarball))
             }

@@ -18,12 +18,12 @@ mod mount;
 mod oci_image;
 
 use crate::cgroup::{get_active_cgroups, terminate_cgroup_processes};
+use crate::oci_image::OCIImage;
 use args::Command;
 use cgroup::{CgroupFactory, CgroupOptions};
 use images::ImageRepository;
 use jail::Jail;
 use std::fs::read_to_string;
-use crate::oci_image::OCIImage;
 
 const USAGE: &'static str =
     "Ruthless is a small application to run rootless, daemonless containers.

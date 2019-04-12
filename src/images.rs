@@ -5,12 +5,15 @@ use failure::Error;
 use nix::dir::{Dir, Type};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
-use std::fs::{metadata, read};
+use std::borrow::Cow;
+use std::fs::{metadata, read, read_dir, remove_dir_all, remove_file, File};
 use std::os::unix::io::AsRawFd;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use tar::{Archive, Entry};
 
 pub(crate) const BTRFS_IOCTL_MAGIC: u64 = 0x94;
 pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
+pub(crate) const BTRFS_IOC_SUBVOL_CREATE: u64 = 14;
 pub(crate) const BTRFS_IOC_SNAP_DESTROY: u64 = 15;
 const BTRFS_PATH_NAME_MAX: usize = 4087;
 
@@ -40,6 +43,12 @@ ioctl_write_ptr!(
     BtrfsVolArgs
 );
 ioctl_write_ptr!(
+    btrfs_ioc_subvol_create,
+    BTRFS_IOCTL_MAGIC,
+    BTRFS_IOC_SUBVOL_CREATE,
+    BtrfsVolArgs
+);
+ioctl_write_ptr!(
     btrfs_ioc_snap_delete,
     BTRFS_IOCTL_MAGIC,
     BTRFS_IOC_SNAP_DESTROY,
@@ -58,6 +67,12 @@ pub(crate) enum ImageError {
     ImageDoesntExist(PathBuf),
     #[fail(display = "Image is not a directory {:?}", 0)]
     ImageIsntDirectory(PathBuf),
+    #[fail(display = "No name path {:?}", 0)]
+    NoNamePath(PathBuf),
+    #[fail(display = "No parent path {:?}", 0)]
+    NoParentPath(PathBuf),
+    #[fail(display = "Can't convert OsString {:?}", 0)]
+    OsStringConversionError(PathBuf),
 }
 
 const LIB_LOCATION: &'static str = ".local/lib/ruthless/images";
@@ -80,6 +95,91 @@ fn get_image_repository_path() -> Result<PathBuf, Error> {
     }
 }
 
+#[inline]
+fn path_to_file_name_str<'a>(path: &'a Cow<Path>) -> Result<&'a str, Error> {
+    Ok(path
+        .file_name()
+        .ok_or(ImageError::NoNamePath(path.to_path_buf()))?
+        .to_str()
+        .ok_or(ImageError::OsStringConversionError(path.to_path_buf()))?)
+}
+
+fn create_steps_queues(
+    layer_tar_file: &mut Archive<File>,
+) -> Result<(Vec<Entry<File>>, Vec<Entry<File>>, Vec<Entry<File>>), Error> {
+    let mut opaque_whiteouts = Vec::new();
+    let mut whiteouts = Vec::new();
+    let mut modifications = Vec::new();
+    for entry_result in layer_tar_file.entries()? {
+        let entry = entry_result?;
+        let path = entry.path()?;
+        let entry_name = path_to_file_name_str(&path)?;
+        if entry_name == ".wh..wh..opq" {
+            opaque_whiteouts.push(entry);
+        } else if entry_name.starts_with(".wh.") {
+            whiteouts.push(entry);
+        } else {
+            modifications.push(entry);
+        }
+    }
+    Ok((opaque_whiteouts, whiteouts, modifications))
+}
+
+fn apply_modifications(
+    modifications: &mut Vec<Entry<File>>,
+    snapshot_path: &PathBuf,
+) -> Result<(), Error> {
+    for modification in modifications {
+        let path = snapshot_path.join(modification.path()?);
+        modification.unpack(path)?;
+    }
+    Ok(())
+}
+
+fn apply_whiteouts(whiteouts: &mut Vec<Entry<File>>, snapshot_path: &PathBuf) -> Result<(), Error> {
+    for whiteout in whiteouts {
+        let original_path = whiteout.path()?;
+        let file_name = path_to_file_name_str(&original_path)?;
+        let path = snapshot_path.join(original_path.with_file_name(file_name.replace(".wh.", "")));
+        if path.is_dir() {
+            remove_dir_all(path)?;
+        } else {
+            remove_file(path)?;
+        }
+    }
+    Ok(())
+}
+
+fn apply_opaque_whiteouts(
+    opaque_whiteouts: &mut Vec<Entry<File>>,
+    snapshot_path: &PathBuf,
+) -> Result<(), Error> {
+    for opaque_whiteout in opaque_whiteouts {
+        let original_path = opaque_whiteout.path()?;
+        let dir = snapshot_path.join(
+            original_path
+                .parent()
+                .ok_or(ImageError::NoParentPath(original_path.to_path_buf()))?,
+        );
+        for entry in read_dir(dir)? {
+            remove_file(entry?.path())?;
+        }
+    }
+    Ok(())
+}
+
+fn from_layer_to_snapshot(
+    layer_tar_file: &mut Archive<File>,
+    snapshot_path: &PathBuf,
+) -> Result<(), Error> {
+    let (mut opaque_whiteouts, mut whiteouts, mut modifications) =
+        create_steps_queues(layer_tar_file)?;
+    apply_opaque_whiteouts(&mut opaque_whiteouts, snapshot_path)?;
+    apply_whiteouts(&mut whiteouts, snapshot_path)?;
+    apply_modifications(&mut modifications, snapshot_path)?;
+    Ok(())
+}
+
 pub(crate) struct ImageRepository {
     pub path: PathBuf,
 }
@@ -99,10 +199,10 @@ impl ImageRepository {
         image: &str,
         name: &str,
     ) -> Result<PathBuf, Error> {
-        let file = metadata(image.clone());
+        let file = metadata(image);
         match file {
             Ok(m) => {
-                let path = PathBuf::from(image.clone());
+                let path = PathBuf::from(image);
                 if m.is_dir() {
                     Ok(path)
                 } else {
@@ -146,11 +246,23 @@ impl ImageRepository {
         Ok(())
     }
 
-    pub(crate) fn create_image_from_path(&self, _name: &str, _path: &PathBuf) -> Result<(), Error> {
+    pub(crate) fn create_image_from_path(&self, name: &str, path: &PathBuf) -> Result<(), Error> {
+        let subvolume_path = self.create_image_subvolume(name)?;
+        let mut layer_content = Archive::new(File::open(path)?);
+        layer_content.unpack(subvolume_path)?;
         Ok(())
     }
 
-    pub(crate) fn create_layer_for_image(&self, _name: &str, _parent: &str, _path: &PathBuf) -> Result<(), Error> {
+    pub(crate) fn create_layer_for_image(
+        &self,
+        name: &str,
+        parent: &str,
+        layer_path: &PathBuf,
+    ) -> Result<(), Error> {
+        let parent_path = self.path.join(parent);
+        let path = self.create_image_snapshot(&parent_path, name)?;
+        let mut tar_file = Archive::new(File::open(layer_path)?);
+        from_layer_to_snapshot(&mut tar_file, &path)?;
         Ok(())
     }
 
@@ -159,6 +271,13 @@ impl ImageRepository {
         let source = Dir::open(parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
         let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name);
         unsafe { btrfs_ioc_snap_create(repository.as_raw_fd() as i32, &args) }?;
+        Ok(self.path.join(name))
+    }
+
+    fn create_image_subvolume(&self, name: &str) -> Result<PathBuf, Error> {
+        let repository = Dir::open(&self.path, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
+        let args = BtrfsVolArgs::new(0i64, name);
+        unsafe { btrfs_ioc_subvol_create(repository.as_raw_fd() as i32, &args) }?;
         Ok(self.path.join(name))
     }
 }
