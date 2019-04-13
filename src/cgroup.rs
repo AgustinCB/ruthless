@@ -14,8 +14,8 @@ enum CgroupError {
     CgroupNotMounted,
 }
 
-const CGROUP_PROCS: &'static str = "cgroup.procs";
-const CGROUP_FS: &'static str = "cgroup2";
+const CGROUP_PROCS: &str = "cgroup.procs";
+const CGROUP_FS: &str = "cgroup2";
 
 fn find_cgroups_path() -> Result<Option<String>, Error> {
     let mounts_content = read_to_string(MOUNTS_FILE)?;
@@ -68,7 +68,7 @@ pub(crate) fn terminate_cgroup_processes(container_name: &str) -> Result<(), Err
     ));
     let pids: Vec<i32> = read_to_string(container_location.join("cgroup.procs"))?
         .trim()
-        .split("\n")
+        .split('\n')
         .map(|p| i32::from_str(p))
         .collect::<Result<Vec<i32>, _>>()?;
     for p in pids {
@@ -117,7 +117,7 @@ impl CgroupFactory {
         for o in self.options.iter() {
             match o {
                 CgroupOptions::CpuMax(max, period) => {
-                    cgroup.set_cpu_max(max.as_str(), period.clone() as isize)?;
+                    cgroup.set_cpu_max(max.as_str(), *period as isize)?;
                 }
                 CgroupOptions::CpuWeight(weight) => {
                     cgroup.set_cpu_weight(weight)?;
@@ -138,7 +138,7 @@ impl CgroupFactory {
                     cgroup.set_io_max(max.as_str())?;
                 }
                 CgroupOptions::IoWeight(range, weight) => {
-                    cgroup.set_io_weight(range.as_str(), weight.clone() as isize)?;
+                    cgroup.set_io_weight(range.as_str(), *weight as isize)?;
                 }
                 CgroupOptions::MemoryHigh(high) => {
                     cgroup.set_memory_high(high.as_str())?;

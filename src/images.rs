@@ -5,7 +5,6 @@ use failure::Error;
 use nix::dir::{Dir, Type};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
-use std::borrow::Cow;
 use std::fs::{metadata, read, read_dir, remove_dir_all, remove_file, File};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -16,6 +15,7 @@ pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
 pub(crate) const BTRFS_IOC_SUBVOL_CREATE: u64 = 14;
 pub(crate) const BTRFS_IOC_SNAP_DESTROY: u64 = 15;
 const BTRFS_PATH_NAME_MAX: usize = 4087;
+const LIB_LOCATION: &str = ".local/lib/ruthless/images";
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -75,8 +75,6 @@ pub(crate) enum ImageError {
     OsStringConversionError(PathBuf),
 }
 
-const LIB_LOCATION: &'static str = ".local/lib/ruthless/images";
-
 fn get_image_repository_path() -> Result<PathBuf, Error> {
     let home_path = home_dir().ok_or(ImageError::NoHomeDirectory)?;
     let lib_path = home_path.join(LIB_LOCATION);
@@ -96,17 +94,19 @@ fn get_image_repository_path() -> Result<PathBuf, Error> {
 }
 
 #[inline]
-fn path_to_file_name_str<'a>(path: &'a Cow<Path>) -> Result<&'a str, Error> {
+fn path_to_file_name_str(path: &Path) -> Result<&str, Error> {
     Ok(path
         .file_name()
-        .ok_or(ImageError::NoNamePath(path.to_path_buf()))?
+        .ok_or_else(|| ImageError::NoNamePath(path.to_path_buf()))?
         .to_str()
-        .ok_or(ImageError::OsStringConversionError(path.to_path_buf()))?)
+        .ok_or_else(|| ImageError::OsStringConversionError(path.to_path_buf()))?)
 }
+
+type OCIQueues<'a> = (Vec<Entry<'a, File>>, Vec<Entry<'a, File>>, Vec<Entry<'a, File>>);
 
 fn create_steps_queues(
     layer_tar_file: &mut Archive<File>,
-) -> Result<(Vec<Entry<File>>, Vec<Entry<File>>, Vec<Entry<File>>), Error> {
+) -> Result<OCIQueues, Error> {
     let mut opaque_whiteouts = Vec::new();
     let mut whiteouts = Vec::new();
     let mut modifications = Vec::new();
@@ -159,7 +159,7 @@ fn apply_opaque_whiteouts(
         let dir = snapshot_path.join(
             original_path
                 .parent()
-                .ok_or(ImageError::NoParentPath(original_path.to_path_buf()))?,
+                .ok_or_else(|| ImageError::NoParentPath(original_path.to_path_buf()))?,
         );
         for entry in read_dir(dir)? {
             remove_file(entry?.path())?;
@@ -226,14 +226,11 @@ impl ImageRepository {
         let mut result = Vec::new();
         for maybe_entry in repository.iter() {
             let entry = maybe_entry?;
-            match entry.file_type() {
-                Some(Type::Directory) => {
-                    let name = entry.file_name().to_str()?;
-                    if name != "." && name != ".." {
-                        result.push(name.to_owned())
-                    }
+            if let Some(Type::Directory) = entry.file_type() {
+                let name = entry.file_name().to_str()?;
+                if name != "." && name != ".." {
+                    result.push(name.to_owned())
                 }
-                _ => {}
             }
         }
         Ok(result)
@@ -269,7 +266,7 @@ impl ImageRepository {
     fn create_image_snapshot(&self, parent: &PathBuf, name: &str) -> Result<PathBuf, Error> {
         let repository = Dir::open(&self.path, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
         let source = Dir::open(parent, OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
-        let args = BtrfsVolArgs::new(source.as_raw_fd() as i64, name);
+        let args = BtrfsVolArgs::new(i64::from(source.as_raw_fd()), name);
         unsafe { btrfs_ioc_snap_create(repository.as_raw_fd() as i32, &args) }?;
         Ok(self.path.join(name))
     }

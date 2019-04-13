@@ -1,7 +1,7 @@
 use failure::Error;
 use nix::mount::{mount, umount, MsFlags};
 
-pub(crate) const MOUNTS_FILE: &'static str = "/proc/mounts";
+pub(crate) const MOUNTS_FILE: &str = "/proc/mounts";
 
 pub(crate) struct Mount {
     target: String,

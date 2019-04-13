@@ -2,7 +2,7 @@ use failure::Error;
 use std::fs::{create_dir, File};
 use std::path::{Path, PathBuf};
 
-pub(crate) const LOGS_PATH: &'static str = "/tmp/ruthless";
+pub(crate) const LOGS_PATH: &str = "/tmp/ruthless";
 
 pub(crate) struct JailLogs {
     folder: PathBuf,

@@ -25,7 +25,7 @@ use images::ImageRepository;
 use jail::Jail;
 use std::fs::read_to_string;
 
-const USAGE: &'static str =
+const USAGE: &str =
     "Ruthless is a small application to run rootless, daemonless containers.
 
 Possible commands:
@@ -38,13 +38,13 @@ ruthless image delete [image] # Deletes image [image]
 ruthless import [tarball] # Import a OCI compatible tarball into the image repository
 ruthless help # See this message
 ruthless help [command] # Describe what an specific command does";
-const USAGE_CONTAINER_DELETE: &'static str = "Usage: ruthless container delete [container]
+const USAGE_CONTAINER_DELETE: &str = "Usage: ruthless container delete [container]
 
 Attempts to delete a running container by killing the processes running in it.";
-const USAGE_CONTAINER_LIST: &'static str = "Usage: ruthless container list
+const USAGE_CONTAINER_LIST: &str = "Usage: ruthless container list
 
 List all the containers that are currently running in the system";
-const USAGE_RUN: &'static str = "Usage: ruthless run [options] [image] [command]
+const USAGE_RUN: &str = "Usage: ruthless run [options] [image] [command]
 
 Run a container with the process [command] over the file system [image]
 
@@ -88,31 +88,31 @@ in between quotes.
 --rdma-max=[cpuset cpus partition]
 \tSet the value to the interface rdma.max. This value requires spaces, so you should put the argument
 in between quotes.";
-const USAGE_IMAGE_LIST: &'static str = "Usage: ruthless image list
+const USAGE_IMAGE_LIST: &str = "Usage: ruthless image list
 
 List all the images available right now in the repository.";
-const USAGE_IMAGE_DELETE: &'static str = "Usage: ruthless image delete [image]
+const USAGE_IMAGE_DELETE: &str = "Usage: ruthless image delete [image]
 
 Attempts to delete the image [image] from the repository.";
-const USAGE_IMPORT: &'static str = "Usage: ruthless import [tarball]
+const USAGE_IMPORT: &str = "Usage: ruthless import [tarball]
 
 Import a OCI tarball image into the ruthless image repository.";
-const USAGE_LOGS: &'static str = "Usage: ruthless logs [container]
+const USAGE_LOGS: &str = "Usage: ruthless logs [container]
 
 Prints the standard output of the container into the current standard output and the standard error
 of the container into the current standard error.";
 
 fn run_command(
     image: &str,
-    command: &Vec<String>,
+    command: &[String],
     detach: bool,
     name: Option<String>,
-    resource_options: &Vec<CgroupOptions>,
+    resource_options: &[CgroupOptions],
 ) -> Result<(), Error> {
-    let name = name.unwrap_or(Uuid::new_v4().to_string());
+    let name = name.unwrap_or_else(|| Uuid::new_v4().to_string());
     let image_repository = ImageRepository::new()?;
     let image_location = image_repository.get_image_location_for_process(image, name.as_str())?;
-    let cgroup_factory = CgroupFactory::new(name, resource_options.clone());
+    let cgroup_factory = CgroupFactory::new(name, resource_options.to_owned());
     let mut jail = Jail::new(detach);
     jail.run(command, image_location.to_str().unwrap(), &cgroup_factory)?;
     Ok(())

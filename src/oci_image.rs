@@ -9,8 +9,8 @@ use std::str::FromStr;
 use tar::Archive;
 use tempdir::TempDir;
 
-const OCI_IMAGE_TEMP: &'static str = "ruthless_oci_image";
-const OCI_IMAGE_REPOSITORIES_PATH: &'static str = "repositories";
+const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
+const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
 
 #[derive(Deserialize)]
 struct LayerJson {
@@ -45,9 +45,9 @@ enum OCIImageError {
 fn layer_name<'a>(
     container_name: &'a str,
     layer: &'a PathBuf,
-    pending_layers: &'a Vec<String>,
+    pending_layers: &'a [String],
 ) -> Result<&'a str, Error> {
-    if pending_layers.len() == 0 {
+    if pending_layers.is_empty() {
         Ok(container_name)
     } else {
         Ok(layer
@@ -67,7 +67,7 @@ impl OCIImage {
             .to_str()
             .ok_or(OCIImageError::NoFileName)?
             .to_owned()
-            .split(".")
+            .split('.')
             .collect::<Vec<&str>>()[0]
             .to_owned();
         let mut tar_file = Archive::new(File::open(tar_file_path)?);
@@ -100,7 +100,7 @@ impl OCIImage {
             last_layer_processed.as_str(),
             &first_layer.join("layer.tar"),
         )?;
-        while let Some(layer) = layer_stack.pop().map(|v| v.clone()) {
+        while let Some(layer) = layer_stack.pop() {
             let layer_path = self.tar_content.path().join(layer);
             let new_layer_name = layer_name(self.name.as_str(), &layer_path, layer_stack)?;
             image_repository.create_layer_for_image(
@@ -133,9 +133,9 @@ impl OCIImage {
     ) -> Result<&'a OCIImageRepositoriesFileLatest, Error> {
         Ok(repositories_content
             .get(&self.name)
-            .ok_or(OCIImageError::RepositoryFileIncomplete(
+            .ok_or_else(|| OCIImageError::RepositoryFileIncomplete(
                 self.name.clone(),
-                repositories_content.keys().map(|s| s.clone()).collect(),
+                repositories_content.keys().cloned().collect(),
             ))?)
     }
 

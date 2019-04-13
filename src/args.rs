@@ -2,22 +2,22 @@ use crate::cgroup::CgroupOptions;
 use std::convert::TryFrom;
 use std::str::FromStr;
 
-const CPU_MAX_OPTION: &'static str = "--cpu-max=";
-const CPU_WEIGHT_OPTION: &'static str = "--cpu-weight=";
-const CPU_WEIGHT_NICE_OPTION: &'static str = "--cpu-weight-nice=";
-const CPUSET_CPUS_OPTION: &'static str = "--cpuset-cpus=";
-const CPUSET_CPUS_PARTITION_OPTION: &'static str = "--cpuset-cpus-partition=";
-const CPUSET_MEMS_OPTION: &'static str = "--cpuset-mems=";
-const IO_MAX_OPTION: &'static str = "--io-max=";
-const IO_WEIGHT_OPTION: &'static str = "--io-weight=";
-const MEMORY_HIGH_OPTION: &'static str = "--memory-high=";
-const MEMORY_LOW_OPTION: &'static str = "--memory-low=";
-const MEMORY_MAX_OPTION: &'static str = "--memory-max=";
-const MEMORY_MIN_OPTION: &'static str = "--memory-min=";
-const MEMORY_OOM_GROUP_OPTION: &'static str = "--memory-oom-group=";
-const MEMORY_SWAP_MAX_OPTION: &'static str = "--memory-swap-max=";
-const PIDS_MAX_OPTION: &'static str = "--pids-max=";
-const RDMA_MAX_OPTION: &'static str = "--rdma-max=";
+const CPU_MAX_OPTION: &str = "--cpu-max=";
+const CPU_WEIGHT_OPTION: &str = "--cpu-weight=";
+const CPU_WEIGHT_NICE_OPTION: &str = "--cpu-weight-nice=";
+const CPUSET_CPUS_OPTION: &str = "--cpuset-cpus=";
+const CPUSET_CPUS_PARTITION_OPTION: &str = "--cpuset-cpus-partition=";
+const CPUSET_MEMS_OPTION: &str = "--cpuset-mems=";
+const IO_MAX_OPTION: &str = "--io-max=";
+const IO_WEIGHT_OPTION: &str = "--io-weight=";
+const MEMORY_HIGH_OPTION: &str = "--memory-high=";
+const MEMORY_LOW_OPTION: &str = "--memory-low=";
+const MEMORY_MAX_OPTION: &str = "--memory-max=";
+const MEMORY_MIN_OPTION: &str = "--memory-min=";
+const MEMORY_OOM_GROUP_OPTION: &str = "--memory-oom-group=";
+const MEMORY_SWAP_MAX_OPTION: &str = "--memory-swap-max=";
+const PIDS_MAX_OPTION: &str = "--pids-max=";
+const RDMA_MAX_OPTION: &str = "--rdma-max=";
 
 #[derive(Debug, Fail)]
 pub(crate) enum ArgumentParsingError {
@@ -114,14 +114,13 @@ macro_rules! handle_resource_option_string {
 
 macro_rules! handle_resource_option_string_number {
     ($number_type: ident, $actual_option: ident, $string_option: expr, $cgroup_option: ident, $resource_options: ident) => {
-        let options: Vec<String> = $actual_option
-            .replace($string_option, "")
+        let parameter = $actual_option.replace($string_option, "");
+        let options: Vec<&str> = parameter
             .split(",")
-            .map(|v| v.to_owned())
             .collect();
-        let period = $number_type::from_str(options[1].as_str())
+        let period = $number_type::from_str(options[1])
             .map_err(|_| ArgumentParsingError::CantParseNumber($actual_option.to_owned()))?;
-        $resource_options.push(CgroupOptions::$cgroup_option(options[0].clone(), period));
+        $resource_options.push(CgroupOptions::$cgroup_option(options[0].to_owned(), period));
     };
 }
 
@@ -227,20 +226,20 @@ fn parse_run_subcommand<I: Iterator<Item = String>>(
     let mut resource_options = Vec::new();
     while let Some(s) = source.next() {
         match (s.as_str(), &image) {
-            ("-d", _) | ("--detach", _) if command.len() == 0 => {
+            ("-d", _) | ("--detach", _) if command.is_empty() => {
                 detach = true;
             }
-            ("-n", _) if command.len() == 0 => {
+            ("-n", _) if command.is_empty() => {
                 name = Some(
                     source
                         .next()
                         .ok_or(ArgumentParsingError::MissingContainerName)?,
                 );
             }
-            (s, _) if command.len() == 0 && s.starts_with("--name=") => {
+            (s, _) if command.is_empty() && s.starts_with("--name=") => {
                 name = Some(s.replace("--name=", "").to_owned());
             }
-            (s, _) if command.len() == 0 && s.starts_with("--") => {
+            (s, _) if command.is_empty() && s.starts_with("--") => {
                 parse_cgroup_option(s, &mut resource_options)?;
             }
             (i, None) => image = Some(i.to_owned()),
@@ -260,7 +259,7 @@ fn parse_run_subcommand<I: Iterator<Item = String>>(
 
 fn parse_help<I: Iterator<Item = String>>(source: I) -> Result<Command, ArgumentParsingError> {
     let next_arguments: Vec<String> = source.collect();
-    Ok(Command::Help(if next_arguments.len() == 0 {
+    Ok(Command::Help(if next_arguments.is_empty() {
         None
     } else {
         let command = next_arguments.join(" ");

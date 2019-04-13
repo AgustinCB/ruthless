@@ -10,13 +10,13 @@ use std::fs::write;
 use std::process::Command;
 
 const STACK_SIZE: usize = 65536;
-const PROC_UID_MAP_FILE: &'static str = "/proc/self/uid_map";
-const PATH_ENV_VARIABLE: &'static str = "PATH";
-const CONTAINER_PATH: &'static str = "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin";
-const COMMAND_ERROR: &'static str = "Command failed to start";
-const PROC_RESOURCE: &'static str = "proc";
-const PROC_TARGET: &'static str = "/proc";
-const PROC_FS: &'static str = "proc";
+const PROC_UID_MAP_FILE: &str = "/proc/self/uid_map";
+const PATH_ENV_VARIABLE: &str = "PATH";
+const CONTAINER_PATH: &str = "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin";
+const COMMAND_ERROR: &str = "Command failed to start";
+const PROC_RESOURCE: &str = "proc";
+const PROC_TARGET: &str = "/proc";
+const PROC_FS: &str = "proc";
 
 fn set_user_map(user_id: Uid) -> Result<(), Error> {
     let content = format!("0 {} 1\n", user_id);
@@ -24,7 +24,7 @@ fn set_user_map(user_id: Uid) -> Result<(), Error> {
     Ok(())
 }
 
-fn run(run_args: &Vec<String>, redirect_logs: bool) -> Result<isize, Error> {
+fn run(run_args: &[String], redirect_logs: bool) -> Result<isize, Error> {
     let _proc_mount = Mount::new(
         PROC_RESOURCE.to_owned(),
         PROC_TARGET.to_owned(),
@@ -32,7 +32,7 @@ fn run(run_args: &Vec<String>, redirect_logs: bool) -> Result<isize, Error> {
     )?;
     let mut command = Command::new(run_args[0].clone());
     command
-        .args(run_args[1..].into_iter())
+        .args(run_args[1..].iter())
         .env_clear()
         .env(PATH_ENV_VARIABLE, CONTAINER_PATH)
         .current_dir("/");
@@ -48,7 +48,7 @@ fn run(run_args: &Vec<String>, redirect_logs: bool) -> Result<isize, Error> {
 }
 
 fn start_parent_process(
-    args: &Vec<String>,
+    args: &[String],
     image: &str,
     cgroup_factory: &CgroupFactory,
     user_id: Uid,
@@ -88,7 +88,7 @@ impl Jail {
 
     pub(crate) fn run(
         &mut self,
-        args: &Vec<String>,
+        args: &[String],
         image: &str,
         cgroup: &CgroupFactory,
     ) -> Result<(), Error> {
@@ -101,7 +101,7 @@ impl Jail {
 
     fn start_process(
         &mut self,
-        args: &Vec<String>,
+        args: &[String],
         image: &str,
         cgroup: &CgroupFactory,
     ) -> Result<Pid, Error> {
