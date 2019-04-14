@@ -102,11 +102,13 @@ fn path_to_file_name_str(path: &Path) -> Result<&str, Error> {
         .ok_or_else(|| ImageError::OsStringConversionError(path.to_path_buf()))?)
 }
 
-type OCIQueues<'a> = (Vec<Entry<'a, File>>, Vec<Entry<'a, File>>, Vec<Entry<'a, File>>);
+type OCIQueues<'a> = (
+    Vec<Entry<'a, File>>,
+    Vec<Entry<'a, File>>,
+    Vec<Entry<'a, File>>,
+);
 
-fn create_steps_queues(
-    layer_tar_file: &mut Archive<File>,
-) -> Result<OCIQueues, Error> {
+fn create_steps_queues(layer_tar_file: &mut Archive<File>) -> Result<OCIQueues, Error> {
     let mut opaque_whiteouts = Vec::new();
     let mut whiteouts = Vec::new();
     let mut modifications = Vec::new();

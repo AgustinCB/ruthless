@@ -115,9 +115,7 @@ macro_rules! handle_resource_option_string {
 macro_rules! handle_resource_option_string_number {
     ($number_type: ident, $actual_option: ident, $string_option: expr, $cgroup_option: ident, $resource_options: ident) => {
         let parameter = $actual_option.replace($string_option, "");
-        let options: Vec<&str> = parameter
-            .split(",")
-            .collect();
+        let options: Vec<&str> = parameter.split(",").collect();
         let period = $number_type::from_str(options[1])
             .map_err(|_| ArgumentParsingError::CantParseNumber($actual_option.to_owned()))?;
         $resource_options.push(CgroupOptions::$cgroup_option(options[0].to_owned(), period));

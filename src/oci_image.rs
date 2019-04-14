@@ -1,5 +1,7 @@
 use crate::images::ImageRepository;
 use failure::Error;
+use nix::errno::Errno;
+use nix::Error as SyscallError;
 use serde::Deserialize;
 use serde_json::from_str;
 use std::collections::HashMap;
@@ -58,6 +60,20 @@ fn layer_name<'a>(
     }
 }
 
+#[inline]
+fn recover_from_eexist(result: Result<(), Error>) -> Result<(), Error> {
+    if let Err(e) = result {
+        let failure: Option<&SyscallError> = e.downcast_ref();
+        if let Some(SyscallError::Sys(Errno::EEXIST)) = failure {
+            Ok(())
+        } else {
+            Err(e)
+        }
+    } else {
+        Ok(())
+    }
+}
+
 impl OCIImage {
     pub(crate) fn new(tar_file_path: &str) -> Result<OCIImage, Error> {
         let path = PathBuf::from_str(tar_file_path)?;
@@ -96,18 +112,18 @@ impl OCIImage {
             .join(layer_stack.pop().ok_or(OCIImageError::NoLayers)?);
         let mut last_layer_processed =
             layer_name(self.name.as_str(), &first_layer, &layer_stack)?.to_owned();
-        image_repository.create_image_from_path(
+        recover_from_eexist(image_repository.create_image_from_path(
             last_layer_processed.as_str(),
             &first_layer.join("layer.tar"),
-        )?;
+        ))?;
         while let Some(layer) = layer_stack.pop() {
             let layer_path = self.tar_content.path().join(layer);
             let new_layer_name = layer_name(self.name.as_str(), &layer_path, layer_stack)?;
-            image_repository.create_layer_for_image(
+            recover_from_eexist(image_repository.create_layer_for_image(
                 new_layer_name,
                 last_layer_processed.as_str(),
                 &layer_path.join("layer.tar"),
-            )?;
+            ))?;
             last_layer_processed = new_layer_name.to_owned();
         }
         Ok(())
@@ -117,11 +133,13 @@ impl OCIImage {
     fn build_layer_stack(&self, starting_layer: &str) -> Result<Vec<String>, Error> {
         let mut results = vec![starting_layer.to_owned()];
         let file_path = self.tar_content.path().join(starting_layer);
-        let mut layer_json = from_str::<LayerJson>(read_to_string(&file_path)?.as_str())?;
+        let mut layer_json =
+            from_str::<LayerJson>(read_to_string(&file_path.join("json"))?.as_str())?;
         while let Some(parent) = layer_json.parent.clone() {
             let next_layer_path = self.tar_content.path().join(parent.as_str());
             results.push(parent);
-            layer_json = from_str::<LayerJson>(read_to_string(&next_layer_path)?.as_str())?;
+            layer_json =
+                from_str::<LayerJson>(read_to_string(&next_layer_path.join("json"))?.as_str())?;
         }
         Ok(results)
     }
@@ -131,12 +149,12 @@ impl OCIImage {
         &self,
         repositories_content: &'a OCIImageRepositoriesFile,
     ) -> Result<&'a OCIImageRepositoriesFileLatest, Error> {
-        Ok(repositories_content
-            .get(&self.name)
-            .ok_or_else(|| OCIImageError::RepositoryFileIncomplete(
+        Ok(repositories_content.get(&self.name).ok_or_else(|| {
+            OCIImageError::RepositoryFileIncomplete(
                 self.name.clone(),
                 repositories_content.keys().cloned().collect(),
-            ))?)
+            )
+        })?)
     }
 
     #[inline]

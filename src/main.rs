@@ -25,8 +25,7 @@ use images::ImageRepository;
 use jail::Jail;
 use std::fs::read_to_string;
 
-const USAGE: &str =
-    "Ruthless is a small application to run rootless, daemonless containers.
+const USAGE: &str = "Ruthless is a small application to run rootless, daemonless containers.
 
 Possible commands:
 ruthless run [image] [command] # Run the given command on the image.
