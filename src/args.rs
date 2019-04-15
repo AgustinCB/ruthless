@@ -48,6 +48,7 @@ pub(crate) enum ArgumentParsingError {
 pub(crate) enum Command {
     DeleteContainer(String),
     DeleteImage(String),
+    Export(String, String),
     Help(Option<String>),
     Import(String),
     ListContainers,
@@ -285,6 +286,15 @@ impl TryFrom<Vec<String>> for Command {
             .ok_or(ArgumentParsingError::NotEnoughArguments)?;
         match leading.as_str() {
             "container" => parse_container_subcommand(source),
+            "export" => {
+                let image = source
+                    .next()
+                    .ok_or(ArgumentParsingError::MissingImage)?;
+                let tarball = source
+                    .next()
+                    .ok_or(ArgumentParsingError::MissingTarballLocation)?;
+                Ok(Command::Export(image, tarball))
+            }
             "help" => parse_help(source),
             "image" => parse_image_subcommand(source),
             "import" => {

@@ -127,6 +127,10 @@ fn delete_image_command(image: &str) -> Result<(), Error> {
     Ok(())
 }
 
+fn export_command(image: &str, tarball: &str) -> Result<(), Error> {
+    Ok(())
+}
+
 fn import_command(tarball: &str) -> Result<(), Error> {
     let image_repository = ImageRepository::new()?;
     let oci_image = OCIImage::new(tarball)?;
@@ -164,6 +168,8 @@ fn main() {
             delete_container_command(container.as_str()).unwrap()
         }
         Ok(Command::DeleteImage(image)) => delete_image_command(image.as_str()).unwrap(),
+        Ok(Command::Export(image, tarball)) =>
+            export_command(image.as_str(), tarball.as_str()).unwrap(),
         Ok(Command::Help(None)) => {
             println!("{}", USAGE);
         }
