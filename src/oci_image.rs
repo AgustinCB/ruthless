@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::fs::{read_to_string, File};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tar::Archive;
 use tempdir::TempDir;
@@ -72,6 +72,19 @@ fn recover_from_eexist(result: Result<(), Error>) -> Result<(), Error> {
     } else {
         Ok(())
     }
+}
+
+pub(crate) fn export<P: AsRef<Path>>(
+    image_repository: &ImageRepository,
+    name: &str,
+    tarball: P,
+) -> Result<(), Error> {
+    let mut stack = Vec::new();
+    let mut current_name = name;
+    while let Some(i) = image_repository.get_image_info(current_name)? {
+        stack.push(i);
+    }
+    Ok(())
 }
 
 impl OCIImage {

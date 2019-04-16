@@ -287,9 +287,7 @@ impl TryFrom<Vec<String>> for Command {
         match leading.as_str() {
             "container" => parse_container_subcommand(source),
             "export" => {
-                let image = source
-                    .next()
-                    .ok_or(ArgumentParsingError::MissingImage)?;
+                let image = source.next().ok_or(ArgumentParsingError::MissingImage)?;
                 let tarball = source
                     .next()
                     .ok_or(ArgumentParsingError::MissingTarballLocation)?;

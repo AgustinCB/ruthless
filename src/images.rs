@@ -2,7 +2,9 @@ use crate::jaillogs::LOGS_PATH;
 use crate::mount::MOUNTS_FILE;
 use dirs::home_dir;
 use failure::Error;
+use nix::{Error as SyscallError};
 use nix::dir::{Dir, Type};
+use nix::errno::Errno;
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
 use std::fs::{metadata, read, read_dir, remove_dir_all, remove_file, File};
@@ -11,10 +13,13 @@ use std::path::{Path, PathBuf};
 use tar::{Archive, Entry};
 
 pub(crate) const BTRFS_IOCTL_MAGIC: u64 = 0x94;
+pub(crate) const BTRFS_IOC_GET_SUBVOL_INFO: u64 = 60;
 pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
 pub(crate) const BTRFS_IOC_SUBVOL_CREATE: u64 = 14;
 pub(crate) const BTRFS_IOC_SNAP_DESTROY: u64 = 15;
 const BTRFS_PATH_NAME_MAX: usize = 4087;
+const BTRFS_VOL_NAME_MAX: usize = 255;
+const BTRFS_UUID_SIZE: usize = 16;
 const LIB_LOCATION: &str = ".local/lib/ruthless/images";
 
 #[repr(C)]
@@ -36,6 +41,61 @@ impl BtrfsVolArgs {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct BtrfsTimespec {
+    sec: u64,
+    nsec: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BtrfsSubvolInfo {
+    treeid: u64,
+    name: [char; BTRFS_VOL_NAME_MAX + 1],
+    parent_id: u64,
+    dirid: u64,
+    generation: u64,
+    flags: u64,
+    uuid: [u8; BTRFS_UUID_SIZE],
+    parent_uuid: [u8; BTRFS_UUID_SIZE],
+    received_uuid: [u8; BTRFS_UUID_SIZE],
+    ctransid: u64,
+    otransid: u64,
+    stransid: u64,
+    rtransid: u64,
+    reserved: [u64; 8],
+    ctime: BtrfsTimespec,
+    otime: BtrfsTimespec,
+    stime: BtrfsTimespec,
+    rtime: BtrfsTimespec,
+}
+
+impl Default for BtrfsSubvolInfo {
+    fn default() -> Self {
+        BtrfsSubvolInfo {
+            treeid: u64::default(),
+            name: [char::default(); BTRFS_VOL_NAME_MAX + 1],
+            parent_id: u64::default(),
+            dirid: u64::default(),
+            generation: u64::default(),
+            flags: u64::default(),
+            uuid: [u8::default(); BTRFS_UUID_SIZE],
+            parent_uuid: [u8::default(); BTRFS_UUID_SIZE],
+            received_uuid: [u8::default(); BTRFS_UUID_SIZE],
+            ctransid: u64::default(),
+            otransid: u64::default(),
+            stransid: u64::default(),
+            rtransid: u64::default(),
+            reserved: [u64::default(); 8],
+            ctime: BtrfsTimespec::default(),
+            otime: BtrfsTimespec::default(),
+            stime: BtrfsTimespec::default(),
+            rtime: BtrfsTimespec::default(),
+        }
+    }
+}
+
 ioctl_write_ptr!(
     btrfs_ioc_snap_create,
     BTRFS_IOCTL_MAGIC,
@@ -53,6 +113,12 @@ ioctl_write_ptr!(
     BTRFS_IOCTL_MAGIC,
     BTRFS_IOC_SNAP_DESTROY,
     BtrfsVolArgs
+);
+ioctl_read!(
+    btrfs_ioc_get_subvol_info,
+    BTRFS_IOCTL_MAGIC,
+    BTRFS_IOC_GET_SUBVOL_INFO,
+    BtrfsSubvolInfo
 );
 
 #[derive(Debug, Fail)]
@@ -263,6 +329,18 @@ impl ImageRepository {
         let mut tar_file = Archive::new(File::open(layer_path)?);
         from_layer_to_snapshot(&mut tar_file, &path)?;
         Ok(())
+    }
+
+    pub(crate) fn get_image_info(&self, name: &str) -> Result<Option<BtrfsSubvolInfo>, Error> {
+        let mut result = BtrfsSubvolInfo::default();
+        let path = Dir::open(&self.path.join(name), OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
+        let info_result =
+            unsafe { btrfs_ioc_get_subvol_info(path.as_raw_fd() as i32, &mut result as *mut _) };
+        match info_result {
+            Ok(_) => Ok(Some(result)),
+            Err(SyscallError::Sys(Errno::ENOENT)) => Ok(None),
+            Err(e) => Err(e)?,
+        }
     }
 
     fn create_image_snapshot(&self, parent: &PathBuf, name: &str) -> Result<PathBuf, Error> {

@@ -168,8 +168,9 @@ fn main() {
             delete_container_command(container.as_str()).unwrap()
         }
         Ok(Command::DeleteImage(image)) => delete_image_command(image.as_str()).unwrap(),
-        Ok(Command::Export(image, tarball)) =>
-            export_command(image.as_str(), tarball.as_str()).unwrap(),
+        Ok(Command::Export(image, tarball)) => {
+            export_command(image.as_str(), tarball.as_str()).unwrap()
+        }
         Ok(Command::Help(None)) => {
             println!("{}", USAGE);
         }
