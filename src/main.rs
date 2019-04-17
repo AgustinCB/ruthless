@@ -10,6 +10,7 @@ use std::process::exit;
 use uuid::Uuid;
 
 mod args;
+mod btrfs_send;
 mod cgroup;
 mod images;
 mod jail;
