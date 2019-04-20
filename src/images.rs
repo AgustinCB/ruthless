@@ -17,6 +17,7 @@ pub(crate) const BTRFS_IOC_GET_SUBVOL_INFO: u64 = 60;
 pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
 pub(crate) const BTRFS_IOC_SUBVOL_CREATE: u64 = 14;
 pub(crate) const BTRFS_IOC_SNAP_DESTROY: u64 = 15;
+pub(crate) const BTRFS_IOC_SEND: u64 = 38;
 const BTRFS_PATH_NAME_MAX: usize = 4087;
 const BTRFS_VOL_NAME_MAX: usize = 255;
 const BTRFS_UUID_SIZE: usize = 16;
@@ -39,6 +40,17 @@ impl BtrfsVolArgs {
         }
         BtrfsVolArgs { fd, name }
     }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BtrfsSendArgs<'a> {
+    fd: i64,
+    clone_sources_count: u64,
+    clone_sources: &'a [u64],
+    parent_root: u64,
+    flags: u64,
+    reserved: [u64; 4],
 }
 
 #[repr(C)]
@@ -119,6 +131,12 @@ ioctl_read!(
     BTRFS_IOCTL_MAGIC,
     BTRFS_IOC_GET_SUBVOL_INFO,
     BtrfsSubvolInfo
+);
+ioctl_write_ptr!(
+    btrfs_ioc_send,
+    BTRFS_IOCTL_MAGIC,
+    BTRFS_IOC_SEND,
+    BtrfsSendArgs
 );
 
 #[derive(Debug, Fail)]
