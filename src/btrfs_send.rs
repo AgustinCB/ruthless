@@ -143,14 +143,21 @@ pub(crate) struct BtrfsSend {
     commands: Vec<BtrfsSendCommand>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 pub(crate) enum BtrfsSendError {
+    #[fail(display = "Invalid checksum: Got {}, expected {}", 1, 0)]
     InvalidChecksume(u32, u32),
+    #[fail(display = "Invalid command type {}", 0)]
     InvalidCommandType(u16),
+    #[fail(display = "Invalid magic number")]
     InvalidMagicNumber,
+    #[fail(display = "Invalid TLV type {}", 0)]
     InvalidTlvType(u16),
+    #[fail(display = "Not enough bytes to parse u32")]
     NotEnoughBytesToParseU32,
+    #[fail(display = "Not enough bytes to parse u16")]
     NotEnoughBytesToParseU16,
+    #[fail(display = "Unexpected length {}", 0)]
     UnexpectedLength(u32),
 }
 

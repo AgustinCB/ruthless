@@ -45,12 +45,12 @@ impl BtrfsVolArgs {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct BtrfsSendArgs<'a> {
-    fd: i64,
-    clone_sources_count: u64,
-    clone_sources: &'a [u64],
-    parent_root: u64,
-    flags: u64,
-    reserved: [u64; 4],
+    pub fd: i64,
+    pub clone_sources_count: u64,
+    pub clone_sources: &'a [u64],
+    pub parent_root: u64,
+    pub flags: u64,
+    pub reserved: [u64; 4],
 }
 
 #[repr(C)]
@@ -64,8 +64,8 @@ pub struct BtrfsTimespec {
 #[derive(Clone, Copy)]
 pub struct BtrfsSubvolInfo {
     treeid: u64,
-    name: [char; BTRFS_VOL_NAME_MAX + 1],
-    parent_id: u64,
+    pub name: [char; BTRFS_VOL_NAME_MAX + 1],
+    pub parent_id: u64,
     dirid: u64,
     generation: u64,
     flags: u64,
