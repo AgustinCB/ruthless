@@ -70,7 +70,7 @@ pub struct BtrfsSubvolInfo {
     generation: u64,
     flags: u64,
     uuid: [u8; BTRFS_UUID_SIZE],
-    parent_uuid: [u8; BTRFS_UUID_SIZE],
+    pub parent_uuid: [u8; BTRFS_UUID_SIZE],
     received_uuid: [u8; BTRFS_UUID_SIZE],
     ctransid: u64,
     otransid: u64,

@@ -15,7 +15,6 @@ use nix::unistd::{pipe, read};
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
 use nix::dir::Dir;
-use nix::sys::ptrace::cont;
 use std::os::unix::io::AsRawFd;
 use std::convert::TryFrom;
 
@@ -82,8 +81,7 @@ fn recover_from_eexist(result: Result<(), Error>) -> Result<(), Error> {
     }
 }
 
-#[inline]
-fn get_btrfs_send(image_repository: &ImageRepository, info: BtrfsSubvolInfo) -> Result<BtrfsSend, Error> {
+fn get_btrfs_send(image_repository: &ImageRepository, info: &BtrfsSubvolInfo) -> Result<BtrfsSend, Error> {
     let (read_end, write_end) = pipe()?;
     let clone_sources = vec![info.parent_id];
     let args = BtrfsSendArgs {
@@ -97,8 +95,8 @@ fn get_btrfs_send(image_repository: &ImageRepository, info: BtrfsSubvolInfo) -> 
     let name = info.name.to_vec().iter().collect::<String>();
     let subvol_fd = Dir::open(&image_repository.path.join(name.as_str()), OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
     unsafe {
-        btrfs_ioc_send(subvol_fd.as_raw_fd(), &args);
-    };
+        btrfs_ioc_send(subvol_fd.as_raw_fd(), &args)
+    }?;
     let mut content = Vec::new();
     let mut read_cache = [0; 1024];
     while read(read_end, &mut read_cache)? != 0 {
@@ -110,17 +108,29 @@ fn get_btrfs_send(image_repository: &ImageRepository, info: BtrfsSubvolInfo) -> 
     )?)
 }
 
+#[inline]
+fn get_btrfs_subvolume_stack(
+    image_repository: &ImageRepository,
+    name: &str,
+) -> Result<Vec<BtrfsSubvolInfo>, Error> {
+    let mut stack = Vec::new();
+    let mut current_name = name.to_owned();
+    while let Some(i) = image_repository.get_image_info(current_name.as_str())? {
+        stack.push(i);
+        current_name = i.parent_uuid.to_vec().iter().map(|u| *u as char).collect::<String>();
+    }
+    Ok(stack)
+}
+
 pub(crate) fn export<P: AsRef<Path>>(
     image_repository: &ImageRepository,
     name: &str,
     tarball: P,
 ) -> Result<(), Error> {
-    let mut stack = Vec::new();
-    let mut current_name = name.to_owned();
-    while let Some(i) = image_repository.get_image_info(current_name.as_str())? {
-        stack.push(i);
-        current_name = i.name.to_vec().iter().collect::<String>();
-    }
+    let stack: Vec<BtrfsSend> = get_btrfs_subvolume_stack(image_repository, name)?
+        .iter()
+        .map(|b| get_btrfs_send(image_repository, b))
+        .collect::<Result<Vec<BtrfsSend>, Error>>()?;
     Ok(())
 }
 

@@ -19,7 +19,7 @@ mod mount;
 mod oci_image;
 
 use crate::cgroup::{get_active_cgroups, terminate_cgroup_processes};
-use crate::oci_image::OCIImage;
+use crate::oci_image::{OCIImage, export};
 use args::Command;
 use cgroup::{CgroupFactory, CgroupOptions};
 use images::ImageRepository;
@@ -129,6 +129,8 @@ fn delete_image_command(image: &str) -> Result<(), Error> {
 }
 
 fn export_command(image: &str, tarball: &str) -> Result<(), Error> {
+    let image_repository = ImageRepository::new()?;
+    export(&image_repository, image, tarball)?;
     Ok(())
 }
 

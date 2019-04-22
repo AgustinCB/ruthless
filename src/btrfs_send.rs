@@ -231,7 +231,7 @@ fn parse_btrfs_command<I: Iterator<Item = u8>>(
     let length = parse_btrfs_u32(source)?;
     let type_number = parse_u16(source)?;
     let checksum = parse_btrfs_u32(source)?;
-    let mut data = parse_data(source, length)?;
+    let data = parse_data(source, length)?;
     let data_checksum = data.iter().cloned().map(|b| b as u32).sum();
     if data_checksum == checksum {
         Ok(Some(BtrfsSendCommand {
@@ -251,7 +251,7 @@ fn parse_btrfs_header(source: &[u8]) -> Result<BtrfsSendHeader, BtrfsSendError> 
     };
     let mut version_numbers_to_convert = [0u8; 4];
     version_numbers_to_convert.copy_from_slice(&source[MAGIC_NUMBER.len()..MAGIC_NUMBER.len() + 4]);
-    let mut version: u32 = unsafe { transmute::<[u8; 4], u32>(version_numbers_to_convert) }.to_be();
+    let version: u32 = unsafe { transmute::<[u8; 4], u32>(version_numbers_to_convert) }.to_be();
     Ok(BtrfsSendHeader { version })
 }
 
