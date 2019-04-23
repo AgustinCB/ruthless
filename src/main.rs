@@ -19,7 +19,7 @@ mod mount;
 mod oci_image;
 
 use crate::cgroup::{get_active_cgroups, terminate_cgroup_processes};
-use crate::oci_image::{OCIImage, export};
+use crate::oci_image::{export, OCIImage};
 use args::Command;
 use cgroup::{CgroupFactory, CgroupOptions};
 use images::ImageRepository;

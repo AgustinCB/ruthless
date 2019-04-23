@@ -1,22 +1,22 @@
-use crate::images::{btrfs_ioc_send, ImageRepository, BtrfsSendArgs, BtrfsSubvolInfo};
+use crate::btrfs_send::BtrfsSend;
+use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use failure::Error;
+use nix::dir::Dir;
 use nix::errno::Errno;
+use nix::fcntl::OFlag;
+use nix::sys::stat::Mode;
+use nix::unistd::{pipe, read};
 use nix::Error as SyscallError;
 use serde::Deserialize;
 use serde_json::from_str;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::fs::{read_to_string, File};
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tar::Archive;
+use tar::{Archive, Builder};
 use tempdir::TempDir;
-use crate::btrfs_send::BtrfsSend;
-use nix::unistd::{pipe, read};
-use nix::fcntl::OFlag;
-use nix::sys::stat::Mode;
-use nix::dir::Dir;
-use std::os::unix::io::AsRawFd;
-use std::convert::TryFrom;
 
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
 const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
@@ -81,7 +81,10 @@ fn recover_from_eexist(result: Result<(), Error>) -> Result<(), Error> {
     }
 }
 
-fn get_btrfs_send(image_repository: &ImageRepository, info: &BtrfsSubvolInfo) -> Result<BtrfsSend, Error> {
+fn get_btrfs_send(
+    image_repository: &ImageRepository,
+    info: &BtrfsSubvolInfo,
+) -> Result<BtrfsSend, Error> {
     let (read_end, write_end) = pipe()?;
     let clone_sources = vec![info.parent_id];
     let args = BtrfsSendArgs {
@@ -93,19 +96,19 @@ fn get_btrfs_send(image_repository: &ImageRepository, info: &BtrfsSubvolInfo) ->
         reserved: [0; 4],
     };
     let name = info.name.to_vec().iter().collect::<String>();
-    let subvol_fd = Dir::open(&image_repository.path.join(name.as_str()), OFlag::O_DIRECTORY, Mode::S_IRWXU)?;
-    unsafe {
-        btrfs_ioc_send(subvol_fd.as_raw_fd(), &args)
-    }?;
+    let subvol_fd = Dir::open(
+        &image_repository.path.join(name.as_str()),
+        OFlag::O_DIRECTORY,
+        Mode::S_IRWXU,
+    )?;
+    unsafe { btrfs_ioc_send(subvol_fd.as_raw_fd(), &args) }?;
     let mut content = Vec::new();
     let mut read_cache = [0; 1024];
     while read(read_end, &mut read_cache)? != 0 {
         content.extend(read_cache.iter());
         read_cache = [0; 1024];
     }
-    Ok(BtrfsSend::try_from(
-        content
-    )?)
+    Ok(BtrfsSend::try_from(content)?)
 }
 
 #[inline]
@@ -117,9 +120,18 @@ fn get_btrfs_subvolume_stack(
     let mut current_name = name.to_owned();
     while let Some(i) = image_repository.get_image_info(current_name.as_str())? {
         stack.push(i);
-        current_name = i.parent_uuid.to_vec().iter().map(|u| *u as char).collect::<String>();
+        current_name = i
+            .parent_uuid
+            .to_vec()
+            .iter()
+            .map(|u| *u as char)
+            .collect::<String>();
     }
     Ok(stack)
+}
+
+fn process_subvolume<P: AsRef<Path>>(_work_bench: P, _volume: BtrfsSend) -> Result<(), Error> {
+    Ok(())
 }
 
 pub(crate) fn export<P: AsRef<Path>>(
@@ -131,6 +143,12 @@ pub(crate) fn export<P: AsRef<Path>>(
         .iter()
         .map(|b| get_btrfs_send(image_repository, b))
         .collect::<Result<Vec<BtrfsSend>, Error>>()?;
+    let work_bench = TempDir::new(OCI_IMAGE_TEMP)?;
+    for volume in stack {
+        process_subvolume(&work_bench, volume)?;
+    }
+    let mut archive_builder = Builder::new(File::open(tarball)?);
+    archive_builder.append_dir_all(work_bench.path(), ".")?;
     Ok(())
 }
 
