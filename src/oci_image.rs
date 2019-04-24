@@ -130,7 +130,14 @@ fn get_btrfs_subvolume_stack(
     Ok(stack)
 }
 
-fn process_subvolume<P: AsRef<Path>>(_work_bench: P, _volume: BtrfsSend) -> Result<(), Error> {
+fn process_subvolume(
+    work_bench: &Path,
+    _volume: BtrfsSend,
+    name: &str,
+) -> Result<(), Error> {
+    let subvolume_work_bench = PathBuf::from(name).join(name);
+    Builder::new(File::open(subvolume_work_bench.join("layer.tar"))?)
+        .append_dir_all(subvolume_work_bench, ".")?;
     Ok(())
 }
 
@@ -139,13 +146,14 @@ pub(crate) fn export<P: AsRef<Path>>(
     name: &str,
     tarball: P,
 ) -> Result<(), Error> {
-    let stack: Vec<BtrfsSend> = get_btrfs_subvolume_stack(image_repository, name)?
+    let stack: Vec<(Vec<u8>, BtrfsSend)> = get_btrfs_subvolume_stack(image_repository, name)?
         .iter()
-        .map(|b| get_btrfs_send(image_repository, b))
-        .collect::<Result<Vec<BtrfsSend>, Error>>()?;
+        .map(|b| get_btrfs_send(image_repository, b).map(|v| (b.uuid.to_vec(), v)))
+        .collect::<Result<Vec<(Vec<u8>, BtrfsSend)>, Error>>()?;
     let work_bench = TempDir::new(OCI_IMAGE_TEMP)?;
-    for volume in stack {
-        process_subvolume(&work_bench, volume)?;
+    for (uuid, volume) in stack {
+        let uuid = String::from_utf8(uuid)?;
+        process_subvolume(&work_bench.path(), volume, uuid.as_str())?;
     }
     let mut archive_builder = Builder::new(File::open(tarball)?);
     archive_builder.append_dir_all(work_bench.path(), ".")?;
