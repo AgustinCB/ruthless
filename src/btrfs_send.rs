@@ -6,7 +6,7 @@ const MAGIC_NUMBER: &'static [u8] = &[
     0x62, 0x74, 0x72, 0x66, 0x73, 0x2d, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x00,
 ];
 
-enum BtrfsSendCommandType {
+pub(crate)enum BtrfsSendCommandType {
     SUBVOL,
     SNAPSHOT,
     MKFILE,
@@ -62,7 +62,7 @@ impl TryFrom<u16> for BtrfsSendCommandType {
     }
 }
 
-enum BtrfsTlvType {
+pub(crate)enum BtrfsTlvType {
     UUID,
     TRANSID,
     INODE,
@@ -126,21 +126,21 @@ struct BtrfsSendHeader {
     version: u32,
 }
 
-struct BtrfsSendCommand {
+pub(crate)struct BtrfsSendCommand {
     length: u32,
-    command: BtrfsSendCommandType,
-    data: Vec<BtrfsSendTlv>,
+    pub(crate)command: BtrfsSendCommandType,
+    pub(crate)data: Vec<BtrfsSendTlv>,
 }
 
-struct BtrfsSendTlv {
-    tlv_type: BtrfsTlvType,
+pub(crate)struct BtrfsSendTlv {
+    pub(crate)tlv_type: BtrfsTlvType,
     length: u16,
-    data: Vec<u8>,
+    pub(crate)data: Vec<u8>,
 }
 
 pub(crate) struct BtrfsSend {
     header: BtrfsSendHeader,
-    commands: Vec<BtrfsSendCommand>,
+    pub(crate)commands: Vec<BtrfsSendCommand>,
 }
 
 #[derive(Debug, Fail)]

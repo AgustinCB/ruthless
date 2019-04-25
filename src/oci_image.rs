@@ -1,4 +1,4 @@
-use crate::btrfs_send::BtrfsSend;
+use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use failure::Error;
 use nix::dir::Dir;
@@ -130,12 +130,21 @@ fn get_btrfs_subvolume_stack(
     Ok(stack)
 }
 
+fn process_command(c: &BtrfsSendCommand, work_bench: &PathBuf) -> Result<(), Error> {
+    match c.command {
+        _ => panic!("Not Implemented yet"),
+    }
+}
+
 fn process_subvolume(
     work_bench: &Path,
     _volume: BtrfsSend,
     name: &str,
 ) -> Result<(), Error> {
     let subvolume_work_bench = PathBuf::from(name).join(name);
+    for c in _volume.commands.iter() {
+        process_command(c, &subvolume_work_bench)?;
+    }
     Builder::new(File::open(subvolume_work_bench.join("layer.tar"))?)
         .append_dir_all(subvolume_work_bench, ".")?;
     Ok(())
