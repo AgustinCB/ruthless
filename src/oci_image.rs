@@ -88,7 +88,7 @@ fn get_btrfs_send(
     let (read_end, write_end) = pipe()?;
     let clone_sources = vec![info.parent_id];
     let args = BtrfsSendArgs {
-        fd: write_end as i64,
+        fd: i64::from(write_end),
         clone_sources_count: 1,
         clone_sources: &clone_sources,
         parent_root: info.parent_id,
@@ -136,11 +136,7 @@ fn process_command(c: &BtrfsSendCommand, work_bench: &PathBuf) -> Result<(), Err
     }
 }
 
-fn process_subvolume(
-    work_bench: &Path,
-    _volume: BtrfsSend,
-    name: &str,
-) -> Result<(), Error> {
+fn process_subvolume(work_bench: &Path, _volume: BtrfsSend, name: &str) -> Result<(), Error> {
     let subvolume_work_bench = PathBuf::from(name).join(name);
     for c in _volume.commands.iter() {
         process_command(c, &subvolume_work_bench)?;

@@ -1,14 +1,14 @@
 use std::convert::TryFrom;
 use std::iter::Peekable;
 use std::mem::transmute;
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 
-const MAGIC_NUMBER: &'static [u8] = &[
+const MAGIC_NUMBER: &[u8] = &[
     0x62, 0x74, 0x72, 0x66, 0x73, 0x2d, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x00,
 ];
 const BTRFS_UUID_SIZE: usize = 16;
 
-pub(crate)enum BtrfsSendCommandType {
+pub(crate) enum BtrfsSendCommandType {
     SUBVOL,
     SNAPSHOT,
     MKFILE,
@@ -108,7 +108,7 @@ pub(crate) struct BtrfsSendCommand {
 
 pub(crate) struct BtrfsSend {
     header: BtrfsSendHeader,
-    pub(crate)commands: Vec<BtrfsSendCommand>,
+    pub(crate) commands: Vec<BtrfsSendCommand>,
 }
 
 #[derive(Debug, Fail)]
@@ -131,8 +131,8 @@ pub(crate) enum BtrfsSendError {
 
 fn parse_u64<I: Iterator<Item = u8>>(source: &mut I) -> Result<u64, BtrfsSendError> {
     let mut length_bytes = [0u8; 8];
-    for i in 0..8 {
-        length_bytes[i] = source
+    for i in &mut length_bytes {
+        *i = source
             .next()
             .ok_or(BtrfsSendError::NotEnoughBytesToParseU32)?;
     }
@@ -141,8 +141,8 @@ fn parse_u64<I: Iterator<Item = u8>>(source: &mut I) -> Result<u64, BtrfsSendErr
 
 fn parse_u32<I: Iterator<Item = u8>>(source: &mut I) -> Result<u32, BtrfsSendError> {
     let mut length_bytes = [0u8; 4];
-    for i in 0..4 {
-        length_bytes[i] = source
+    for i in &mut length_bytes {
+        *i = source
             .next()
             .ok_or(BtrfsSendError::NotEnoughBytesToParseU32)?;
     }
@@ -151,8 +151,8 @@ fn parse_u32<I: Iterator<Item = u8>>(source: &mut I) -> Result<u32, BtrfsSendErr
 
 fn parse_u16<I: Iterator<Item = u8>>(source: &mut I) -> Result<u16, BtrfsSendError> {
     let mut u16_bytes = [0u8; 2];
-    for i in 0..2 {
-        u16_bytes[i] = source
+    for i in &mut u16_bytes {
+        *i = source
             .next()
             .ok_or(BtrfsSendError::NotEnoughBytesToParseU16)?;
     }
@@ -174,14 +174,16 @@ fn parse_data<I: Iterator<Item = u8>>(
     Ok(data)
 }
 
-fn parse_uuid<I: Iterator<Item = u8>>(source: &mut I) -> Result<[u8; BTRFS_UUID_SIZE], BtrfsSendError> {
+fn parse_uuid<I: Iterator<Item = u8>>(
+    source: &mut I,
+) -> Result<[u8; BTRFS_UUID_SIZE], BtrfsSendError> {
     let mut data = [0; BTRFS_UUID_SIZE];
-    for i in 0..BTRFS_UUID_SIZE {
-        if let Some(b) = source.next() {
-            data[i] = b;
+    for b in data.iter_mut().take(BTRFS_UUID_SIZE) {
+        if let Some(nb) = source.next() {
+            *b = nb;
         } else {
             Err(BtrfsSendError::UnexpectedLength(BTRFS_UUID_SIZE as u32))?
-        }
+        };
     }
     Ok(data)
 }
@@ -194,7 +196,7 @@ fn parse_timespec<I: Iterator<Item = u8>>(source: &mut I) -> Result<Timespec, Bt
 }
 
 fn parse_string<I: Iterator<Item = u8>>(source: &mut I) -> Result<String, BtrfsSendError> {
-    let length = parse_u16(source)? as u32;
+    let length = u32::from(parse_u16(source)?);
     let data = parse_data(source, length)?;
     Ok(unsafe { String::from_utf8_unchecked(data) })
 }
@@ -206,14 +208,12 @@ fn parse_path<I: Iterator<Item = u8>>(source: &mut I) -> Result<PathBuf, BtrfsSe
 fn parse_tlv<I: Iterator<Item = u8>>(
     source: &mut Peekable<I>,
 ) -> Result<Option<BtrfsSendTlv>, BtrfsSendError> {
-    if let None = source.peek() {
+    if source.peek().is_none() {
         return Ok(None);
     }
     let tlv_type = parse_u16(source)?;
     match tlv_type {
-        1 => {
-            Ok(Some(BtrfsSendTlv::UUID(parse_uuid(source)?)))
-        },
+        1 => Ok(Some(BtrfsSendTlv::UUID(parse_uuid(source)?))),
         2 => Ok(Some(BtrfsSendTlv::TRANSID(parse_u64(source)?))),
         3 => Ok(Some(BtrfsSendTlv::INODE)),
         4 => Ok(Some(BtrfsSendTlv::SIZE(parse_u64(source)?))),
@@ -227,7 +227,7 @@ fn parse_tlv<I: Iterator<Item = u8>>(
         12 => Ok(Some(BtrfsSendTlv::OTIME(parse_timespec(source)?))),
         13 => Ok(Some(BtrfsSendTlv::XATTR_NAME(parse_string(source)?))),
         14 => Ok(Some(BtrfsSendTlv::XATTR_DATA({
-            let length = parse_u16(source)? as u32;
+            let length = u32::from(parse_u16(source)?);
             parse_data(source, length)?
         }))),
         15 => Ok(Some(BtrfsSendTlv::PATH(parse_path(source)?))),
@@ -235,7 +235,7 @@ fn parse_tlv<I: Iterator<Item = u8>>(
         17 => Ok(Some(BtrfsSendTlv::PATH_LINK(parse_path(source)?))),
         18 => Ok(Some(BtrfsSendTlv::OFFSET(parse_u64(source)?))),
         19 => Ok(Some(BtrfsSendTlv::DATA({
-            let length = parse_u16(source)? as u32;
+            let length = u32::from(parse_u16(source)?);
             parse_data(source, length)?
         }))),
         20 => Ok(Some(BtrfsSendTlv::CLONE_UUID(parse_uuid(source)?))),
@@ -260,14 +260,14 @@ fn parse_tlvs<I: Iterator<Item = u8>>(
 fn parse_btrfs_command<I: Iterator<Item = u8>>(
     source: &mut Peekable<I>,
 ) -> Result<Option<BtrfsSendCommand>, BtrfsSendError> {
-    if let None = source.next() {
+    if source.peek().is_none() {
         return Ok(None);
     }
     let length = parse_u32(source)?;
     let type_number = parse_u16(source)?;
     let checksum = parse_u32(source)?;
     let data = parse_data(source, length)?;
-    let data_checksum = data.iter().cloned().map(|b| b as u32).sum();
+    let data_checksum = data.iter().cloned().map(u32::from).sum();
     if data_checksum == checksum {
         Ok(Some(BtrfsSendCommand {
             length,
