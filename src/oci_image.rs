@@ -131,7 +131,7 @@ fn get_btrfs_subvolume_stack(
 }
 
 fn process_command(c: &BtrfsSendCommand, work_bench: &PathBuf) -> Result<(), Error> {
-    match c.command {
+    match c {
         _ => panic!("Not Implemented yet"),
     }
 }
