@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::fs::{read_to_string, File};
+use std::fs::{read_to_string, File, read_dir, copy};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -136,14 +136,53 @@ fn process_command(c: &BtrfsSendCommand, work_bench: &PathBuf) -> Result<(), Err
     }
 }
 
-fn process_subvolume(work_bench: &Path, _volume: BtrfsSend, name: &str) -> Result<(), Error> {
-    let subvolume_work_bench = PathBuf::from(name).join(name);
-    for c in _volume.commands.iter() {
-        process_command(c, &subvolume_work_bench)?;
+fn process_snapshot(
+    snapshot_work_bench: &PathBuf,
+    snapshot: BtrfsSend,
+    name: &str,
+) -> Result<(), Error> {
+    for c in snapshot.commands.iter() {
+        process_command(c, snapshot_work_bench)?;
     }
-    Builder::new(File::open(subvolume_work_bench.join("layer.tar"))?)
-        .append_dir_all(subvolume_work_bench, ".")?;
+    Builder::new(File::open(snapshot_work_bench.join("layer.tar"))?)
+        .append_dir_all(snapshot_work_bench, ".")?;
     Ok(())
+}
+
+fn process_base_subvolume(
+    snapshot_work_bench: &PathBuf,
+    snapshot: BtrfsSend,
+    name: &str,
+    image_repository: &ImageRepository,
+) -> Result<(), Error> {
+    let subvolume_path = image_repository.path.join(name);
+    for entry_result in read_dir(&subvolume_path)? {
+        let entry = entry_result?;
+        copy(entry.path(), &subvolume_path)?;
+    }
+    Ok(())
+}
+
+fn is_subvolume(cmd: &&BtrfsSendCommand) -> bool {
+    if let BtrfsSendCommand::SUBVOL(_, _, _) = cmd {
+        true
+    } else {
+        false
+    }
+}
+
+fn process_subvolume(
+    work_bench: &Path,
+    volume: BtrfsSend,
+    name: &str,
+    image_repository: &ImageRepository,
+) -> Result<(), Error> {
+    let snapshot_work_bench = PathBuf::from(name).join(name);
+    if volume.commands.iter().find(is_subvolume).is_none() {
+        process_snapshot(&snapshot_work_bench, volume, name)
+    } else {
+        process_base_subvolume(&snapshot_work_bench, volume, name, image_repository)
+    }
 }
 
 pub(crate) fn export<P: AsRef<Path>>(
@@ -158,7 +197,12 @@ pub(crate) fn export<P: AsRef<Path>>(
     let work_bench = TempDir::new(OCI_IMAGE_TEMP)?;
     for (uuid, volume) in stack {
         let uuid = String::from_utf8(uuid)?;
-        process_subvolume(&work_bench.path(), volume, uuid.as_str())?;
+        process_subvolume(
+            &work_bench.path(),
+            volume,
+            uuid.as_str(),
+            image_repository,
+        )?;
     }
     let mut archive_builder = Builder::new(File::open(tarball)?);
     archive_builder.append_dir_all(work_bench.path(), ".")?;
