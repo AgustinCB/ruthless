@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::iter::Peekable;
 use std::mem::transmute;
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 
 const MAGIC_NUMBER: &[u8] = &[
     0x62, 0x74, 0x72, 0x66, 0x73, 0x2d, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x00,
@@ -67,12 +67,7 @@ pub(crate) enum BtrfsSendTlv {
     CLONE_LENGTH(u64),
 }
 
-struct BtrfsSendHeader {
-    version: u32,
-}
-
 pub(crate) struct BtrfsSend {
-    header: BtrfsSendHeader,
     pub(crate) commands: Vec<BtrfsSendCommand>,
 }
 
@@ -699,26 +694,26 @@ fn parse_btrfs_command<I: Iterator<Item = u8>>(
     }
 }
 
-fn parse_btrfs_header(source: &[u8]) -> Result<BtrfsSendHeader, BtrfsSendError> {
+fn parse_btrfs_header(source: &[u8]) -> Result<(), BtrfsSendError> {
     let magic_number = &source[0..MAGIC_NUMBER.len()];
     if magic_number != MAGIC_NUMBER {
         return Err(BtrfsSendError::InvalidMagicNumber);
     };
     let mut version_numbers_to_convert = [0u8; 4];
     version_numbers_to_convert.copy_from_slice(&source[MAGIC_NUMBER.len()..MAGIC_NUMBER.len() + 4]);
-    let version: u32 = unsafe { transmute::<[u8; 4], u32>(version_numbers_to_convert) }.to_be();
-    Ok(BtrfsSendHeader { version })
+    let _version: u32 = unsafe { transmute::<[u8; 4], u32>(version_numbers_to_convert) }.to_be();
+    Ok(())
 }
 
 impl TryFrom<Vec<u8>> for BtrfsSend {
     type Error = BtrfsSendError;
     fn try_from(source: Vec<u8>) -> Result<BtrfsSend, Self::Error> {
-        let header = parse_btrfs_header(&source[0..MAGIC_NUMBER.len() + 4])?;
+        parse_btrfs_header(&source[0..MAGIC_NUMBER.len() + 4])?;
         let mut bytes = source.into_iter().skip(MAGIC_NUMBER.len() + 4).peekable();
         let mut commands = Vec::new();
         while let Some(command) = parse_btrfs_command(&mut bytes)? {
             commands.push(command);
         }
-        Ok(BtrfsSend { commands, header })
+        Ok(BtrfsSend { commands })
     }
 }

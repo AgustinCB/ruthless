@@ -1,22 +1,24 @@
-use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand};
+use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand, BtrfsSendError};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use failure::Error;
 use nix::dir::Dir;
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
-use nix::sys::stat::Mode;
-use nix::unistd::{pipe, read};
+use nix::sys::stat::{Mode, SFlag, mknod};
+use nix::unistd::{pipe, read, mkdir};
 use nix::Error as SyscallError;
 use serde::Deserialize;
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::{read_to_string, File, read_dir, copy};
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tar::{Archive, Builder};
 use tempdir::TempDir;
+use std::os::unix::raw::mode_t;
 
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
 const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
@@ -48,6 +50,8 @@ enum OCIImageError {
     NoFileName,
     #[fail(display = "Repositories file doesn't have key {} between {:?}", 0, 1)]
     RepositoryFileIncomplete(String, Vec<String>),
+    #[fail(display = "Invalid mode {}", 0)]
+    InvalidMode(mode_t),
 }
 
 #[inline]
@@ -130,8 +134,51 @@ fn get_btrfs_subvolume_stack(
     Ok(stack)
 }
 
-fn process_command(c: &BtrfsSendCommand, work_bench: &PathBuf) -> Result<(), Error> {
+fn process_mknode(
+    local_path: &PathBuf,
+    work_bench: &PathBuf,
+    mode: u64,
+    dev_t: u64,
+) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    mknod(
+        &full_path,
+        SFlag::S_IFMT,
+        Mode::from_bits(mode as mode_t)
+            .ok_or_else(|| OCIImageError::InvalidMode(mode as mode_t))?,
+        dev_t
+    )?;
+    Ok(())
+}
+
+fn process_mkdir(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    mkdir(&full_path, Mode::S_IRWXU)?;
+    Ok(())
+}
+
+fn process_mkfile(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    let file = File::create(full_path)?;
+    let mut permissions = file.metadata()?.permissions();
+    permissions.set_mode(0o600);
+    file.set_permissions(permissions)?;
+    Ok(())
+}
+
+fn process_command(
+    c: &BtrfsSendCommand,
+    work_bench: &PathBuf,
+    name: &str,
+    image_repository: &ImageRepository,
+) -> Result<(), Error> {
     match c {
+        BtrfsSendCommand::SNAPSHOT(_, _, _, _, _) =>
+            process_base_subvolume(work_bench, name, image_repository),
+        BtrfsSendCommand::MKFILE(local_path) => process_mkfile(local_path, work_bench),
+        BtrfsSendCommand::MKDIR(local_path) => process_mkdir(local_path, work_bench),
+        BtrfsSendCommand::MKNOD(local_path, mode, dev_t) =>
+            process_mknode(local_path, work_bench, *mode, *dev_t),
         _ => panic!("Not Implemented yet"),
     }
 }
@@ -140,9 +187,10 @@ fn process_snapshot(
     snapshot_work_bench: &PathBuf,
     snapshot: BtrfsSend,
     name: &str,
+    image_repository: &ImageRepository,
 ) -> Result<(), Error> {
     for c in snapshot.commands.iter() {
-        process_command(c, snapshot_work_bench)?;
+        process_command(c, snapshot_work_bench, name, image_repository)?;
     }
     Builder::new(File::open(snapshot_work_bench.join("layer.tar"))?)
         .append_dir_all(snapshot_work_bench, ".")?;
@@ -151,14 +199,13 @@ fn process_snapshot(
 
 fn process_base_subvolume(
     snapshot_work_bench: &PathBuf,
-    snapshot: BtrfsSend,
     name: &str,
     image_repository: &ImageRepository,
 ) -> Result<(), Error> {
     let subvolume_path = image_repository.path.join(name);
     for entry_result in read_dir(&subvolume_path)? {
         let entry = entry_result?;
-        copy(entry.path(), &subvolume_path)?;
+        copy(entry.path(), snapshot_work_bench)?;
     }
     Ok(())
 }
@@ -177,11 +224,11 @@ fn process_subvolume(
     name: &str,
     image_repository: &ImageRepository,
 ) -> Result<(), Error> {
-    let snapshot_work_bench = PathBuf::from(name).join(name);
+    let snapshot_work_bench = work_bench.join(name);
     if volume.commands.iter().find(is_subvolume).is_none() {
-        process_snapshot(&snapshot_work_bench, volume, name)
+        process_snapshot(&snapshot_work_bench, volume, name, image_repository)
     } else {
-        process_base_subvolume(&snapshot_work_bench, volume, name, image_repository)
+        process_base_subvolume(&snapshot_work_bench, name, image_repository)
     }
 }
 
