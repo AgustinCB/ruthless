@@ -1,24 +1,23 @@
-use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand, BtrfsSendError};
+use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use failure::Error;
 use nix::dir::Dir;
 use nix::errno::Errno;
 use nix::fcntl::OFlag;
-use nix::sys::stat::{Mode, SFlag, mknod};
-use nix::unistd::{pipe, read, mkdir};
+use nix::sys::stat::{Mode, SFlag, mknod, mode_t};
+use nix::unistd::{pipe, read, mkdir, mkfifo, symlinkat};
 use nix::Error as SyscallError;
 use serde::Deserialize;
 use serde_json::from_str;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::fs::{read_to_string, File, read_dir, copy};
+use std::fs::{read_to_string, File, read_dir, copy, rename};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tar::{Archive, Builder};
 use tempdir::TempDir;
-use std::os::unix::raw::mode_t;
 
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
 const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
@@ -134,6 +133,32 @@ fn get_btrfs_subvolume_stack(
     Ok(stack)
 }
 
+fn process_rename(from: &PathBuf, to: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_to_path = work_bench.join(to);
+    let full_from_path = work_bench.join(from);
+    rename(full_from_path, full_to_path)?;
+    Ok(())
+}
+
+fn process_symlink(local_path: &PathBuf, to_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_to_path = work_bench.join(to_path);
+    let dir = Dir::open(work_bench, OFlag::empty(), Mode::empty())?;
+    symlinkat(&full_to_path, Some(dir.as_raw_fd()), local_path)?;
+    Ok(())
+}
+
+fn process_mksock(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    mknod(&full_path, SFlag::S_IFSOCK,Mode::from_bits(0o600 as mode_t).unwrap(), 0)?;
+    Ok(())
+}
+
+fn process_mkfifo(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    mkfifo(&full_path, Mode::from_bits(0o600 as mode_t).unwrap())?;
+    Ok(())
+}
+
 fn process_mknode(
     local_path: &PathBuf,
     work_bench: &PathBuf,
@@ -179,6 +204,10 @@ fn process_command(
         BtrfsSendCommand::MKDIR(local_path) => process_mkdir(local_path, work_bench),
         BtrfsSendCommand::MKNOD(local_path, mode, dev_t) =>
             process_mknode(local_path, work_bench, *mode, *dev_t),
+        BtrfsSendCommand::MKFIFO(local_path) => process_mkfifo(local_path, work_bench),
+        BtrfsSendCommand::MKSOCK(local_path) => process_mksock(local_path, work_bench),
+        BtrfsSendCommand::SYMLINK(from, to) => process_symlink(from, to, work_bench),
+        BtrfsSendCommand::RENAME(from, to) => process_rename(from, to, work_bench),
         _ => panic!("Not Implemented yet"),
     }
 }
