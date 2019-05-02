@@ -1,11 +1,12 @@
 use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use failure::Error;
+use nix::libc::{link, rmdir};
 use nix::dir::Dir;
-use nix::errno::Errno;
+use nix::errno::{Errno, errno};
 use nix::fcntl::OFlag;
 use nix::sys::stat::{Mode, SFlag, mknod, mode_t};
-use nix::unistd::{pipe, read, mkdir, mkfifo, symlinkat};
+use nix::unistd::{pipe, read, mkdir, mkfifo, symlinkat, unlink};
 use nix::Error as SyscallError;
 use serde::Deserialize;
 use serde_json::from_str;
@@ -51,6 +52,8 @@ enum OCIImageError {
     RepositoryFileIncomplete(String, Vec<String>),
     #[fail(display = "Invalid mode {}", 0)]
     InvalidMode(mode_t),
+    #[fail(display = "Syscall error {}", 0)]
+    SyscallError(i32),
 }
 
 #[inline]
@@ -133,6 +136,52 @@ fn get_btrfs_subvolume_stack(
     Ok(stack)
 }
 
+fn path_to_c_pointer(path: &PathBuf) -> *const i8 {
+    let chars: Vec<i8> = path.as_os_str()
+        .to_string_lossy()
+        .as_bytes()
+        .iter()
+        .map(|v| *v as i8)
+        .collect();
+    chars.as_ptr()
+}
+fn safe_link(from: &PathBuf, to: &PathBuf) -> Result<(), Error> {
+    let res = unsafe { link(path_to_c_pointer(from), path_to_c_pointer(to)) };
+    if res == 0 {
+        Ok(())
+    } else {
+        let err = errno();
+        Err(OCIImageError::SyscallError(err))?
+    }
+}
+
+fn safe_rmdir(path: &PathBuf) -> Result<(), Error> {
+    let res = unsafe { rmdir(path_to_c_pointer(path)) };
+    if res == 0 {
+        Ok(())
+    } else {
+        let err = errno();
+        Err(OCIImageError::SyscallError(err))?
+    }
+}
+
+fn process_rmdir(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    safe_rmdir(&full_path)
+}
+
+fn process_unlink(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    unlink(&full_path)?;
+    Ok(())
+}
+
+fn process_link(local_path: &PathBuf, to_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+    let full_to_path = work_bench.join(to_path);
+    let full_from_path = work_bench.join(local_path);
+    safe_link(&full_from_path, &full_to_path)
+}
+
 fn process_rename(from: &PathBuf, to: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
     let full_to_path = work_bench.join(to);
     let full_from_path = work_bench.join(from);
@@ -208,6 +257,9 @@ fn process_command(
         BtrfsSendCommand::MKSOCK(local_path) => process_mksock(local_path, work_bench),
         BtrfsSendCommand::SYMLINK(from, to) => process_symlink(from, to, work_bench),
         BtrfsSendCommand::RENAME(from, to) => process_rename(from, to, work_bench),
+        BtrfsSendCommand::LINK(from, to) => process_link(from, to, work_bench),
+        BtrfsSendCommand::UNLINK(local_path) => process_unlink(local_path, work_bench),
+        BtrfsSendCommand::RMDIR(local_path) => process_rmdir(local_path, work_bench),
         _ => panic!("Not Implemented yet"),
     }
 }
