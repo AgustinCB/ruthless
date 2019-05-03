@@ -1,7 +1,7 @@
 use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use failure::Error;
-use nix::libc::{link, rmdir};
+use nix::libc::{link, lremovexattr, lsetxattr, rmdir};
 use nix::dir::Dir;
 use nix::errno::{Errno, errno};
 use nix::fcntl::OFlag;
@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tar::{Archive, Builder};
 use tempdir::TempDir;
+use std::io::Write;
+use std::os::raw::c_void;
 
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
 const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
@@ -145,6 +147,40 @@ fn path_to_c_pointer(path: &PathBuf) -> *const i8 {
         .collect();
     chars.as_ptr()
 }
+
+fn safe_lremovexattr(path: &PathBuf, name: &str) -> Result<(), Error> {
+    let res = unsafe {
+        lremovexattr(
+            path_to_c_pointer(path),
+            name.as_bytes().iter().map(|v| *v as i8).collect::<Vec<i8>>().as_ptr(),
+        )
+    };
+    if res == 0 {
+        Ok(())
+    } else {
+        let err = errno();
+        Err(OCIImageError::SyscallError(err))?
+    }
+}
+
+fn safe_lsetxattr(path: &PathBuf, name: &str, data: &[u8]) -> Result<(), Error> {
+    let res = unsafe {
+        lsetxattr(
+            path_to_c_pointer(path),
+            name.as_bytes().iter().map(|v| *v as i8).collect::<Vec<i8>>().as_ptr(),
+            data.as_ptr() as *const c_void,
+            data.len(),
+            0
+        )
+    };
+    if res == 0 {
+        Ok(())
+    } else {
+        let err = errno();
+        Err(OCIImageError::SyscallError(err))?
+    }
+}
+
 fn safe_link(from: &PathBuf, to: &PathBuf) -> Result<(), Error> {
     let res = unsafe { link(path_to_c_pointer(from), path_to_c_pointer(to)) };
     if res == 0 {
@@ -163,6 +199,34 @@ fn safe_rmdir(path: &PathBuf) -> Result<(), Error> {
         let err = errno();
         Err(OCIImageError::SyscallError(err))?
     }
+}
+
+fn process_set_xattr(
+    local_path: &PathBuf,
+    work_bench: &PathBuf,
+    xattr: &str,
+    data: &[u8],
+) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    safe_lsetxattr(&full_path, xattr, &data)?;
+    Ok(())
+}
+
+fn process_remove_xattr(
+    local_path: &PathBuf,
+    work_bench: &PathBuf,
+    xattr: &str,
+) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    safe_lremovexattr(&full_path, xattr)?;
+    Ok(())
+}
+
+fn process_write(local_path: &PathBuf, work_bench: &PathBuf, data: &[u8]) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    let mut file = File::open(&full_path)?;
+    file.write(&data)?;
+    Ok(())
 }
 
 fn process_rmdir(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
@@ -260,6 +324,9 @@ fn process_command(
         BtrfsSendCommand::LINK(from, to) => process_link(from, to, work_bench),
         BtrfsSendCommand::UNLINK(local_path) => process_unlink(local_path, work_bench),
         BtrfsSendCommand::RMDIR(local_path) => process_rmdir(local_path, work_bench),
+        BtrfsSendCommand::SET_XATTR(path, name, data) => process_set_xattr(path, work_bench, name.as_str(), data),
+        BtrfsSendCommand::REMOVE_XATTR(local_path, name) => process_remove_xattr(local_path, work_bench, name.as_str()),
+        BtrfsSendCommand::WRITE(local_path, _, data) => process_write(local_path, work_bench, data),
         _ => panic!("Not Implemented yet"),
     }
 }
