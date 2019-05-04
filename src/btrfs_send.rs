@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 use std::iter::Peekable;
 use std::mem::transmute;
 use std::path::PathBuf;
+use nix::sys::time::{TimeSpec, TimeValLike};
 
 const MAGIC_NUMBER: &[u8] = &[
     0x62, 0x74, 0x72, 0x66, 0x73, 0x2d, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x00,
@@ -38,6 +39,12 @@ pub(crate) enum BtrfsSendCommand {
 pub(crate) struct Timespec {
     secs: u64,
     nsecs: u32,
+}
+
+impl Into<TimeSpec> for Timespec {
+    fn into(self) -> TimeSpec {
+        TimeSpec::nanoseconds(self.nsecs as i64)
+    }
 }
 
 pub(crate) enum BtrfsSendTlv {

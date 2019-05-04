@@ -1,12 +1,12 @@
-use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand};
+use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand, Timespec};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use failure::Error;
-use nix::libc::{link, lremovexattr, lsetxattr, rmdir};
+use nix::libc::{chmod, gid_t, link, lremovexattr, lsetxattr, rmdir, uid_t};
 use nix::dir::Dir;
 use nix::errno::{Errno, errno};
 use nix::fcntl::OFlag;
-use nix::sys::stat::{Mode, SFlag, mknod, mode_t};
-use nix::unistd::{pipe, read, mkdir, mkfifo, symlinkat, unlink};
+use nix::sys::stat::{Mode, SFlag, mknod, mode_t, utimensat, UtimensatFlags};
+use nix::unistd::{pipe, read, mkdir, mkfifo, symlinkat, unlink, truncate, chown, Uid, Gid};
 use nix::Error as SyscallError;
 use serde::Deserialize;
 use serde_json::from_str;
@@ -148,6 +148,18 @@ fn path_to_c_pointer(path: &PathBuf) -> *const i8 {
     chars.as_ptr()
 }
 
+fn safe_chmod(path: &PathBuf, mode: mode_t) -> Result<(), Error> {
+    let res = unsafe {
+        chmod(path_to_c_pointer(path), mode)
+    };
+    if res == 0 {
+        Ok(())
+    } else {
+        let err = errno();
+        Err(OCIImageError::SyscallError(err))?
+    }
+}
+
 fn safe_lremovexattr(path: &PathBuf, name: &str) -> Result<(), Error> {
     let res = unsafe {
         lremovexattr(
@@ -199,6 +211,47 @@ fn safe_rmdir(path: &PathBuf) -> Result<(), Error> {
         let err = errno();
         Err(OCIImageError::SyscallError(err))?
     }
+}
+
+fn process_utimes(
+    local_path: &PathBuf,
+    work_bench: &PathBuf,
+    at: Timespec,
+    mt: Timespec,
+) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    utimensat(None, &full_path, &at.into(), &mt.into(), UtimensatFlags::NoFollowSymlink)?;
+    Ok(())
+}
+
+fn process_chown(
+    local_path: &PathBuf,
+    work_bench: &PathBuf,
+    uid: u64,
+    gid: u64,
+) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    chown(&full_path, Some(Uid::from_raw(uid as uid_t)), Some(Gid::from_raw(gid as gid_t)))?;
+    Ok(())
+}
+
+fn process_chmod(
+    local_path: &PathBuf,
+    work_bench: &PathBuf,
+    mode: u64,
+) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    safe_chmod(&full_path, mode as mode_t)
+}
+
+fn process_truncate(
+    local_path: &PathBuf,
+    work_bench: &PathBuf,
+    size: u64,
+) -> Result<(), Error> {
+    let full_path = work_bench.join(local_path);
+    truncate(&full_path, size as i64)?;
+    Ok(())
 }
 
 fn process_set_xattr(
@@ -327,6 +380,13 @@ fn process_command(
         BtrfsSendCommand::SET_XATTR(path, name, data) => process_set_xattr(path, work_bench, name.as_str(), data),
         BtrfsSendCommand::REMOVE_XATTR(local_path, name) => process_remove_xattr(local_path, work_bench, name.as_str()),
         BtrfsSendCommand::WRITE(local_path, _, data) => process_write(local_path, work_bench, data),
+        BtrfsSendCommand::CLONE(_, _, _, _, _, _, _) => Ok(()),
+        BtrfsSendCommand::TRUNCATE(path, size) => process_truncate(path, work_bench, *size),
+        BtrfsSendCommand::CHMOD(path, mode) => process_chmod(path, work_bench, *mode),
+        BtrfsSendCommand::CHOWN(path, uid, gid) => process_chown(path, work_bench, *uid, *gid),
+        BtrfsSendCommand::UTIMES(path, at, mt, _) =>
+            process_utimes(path, work_bench, at.clone(), mt.clone()),
+        BtrfsSendCommand::UPDATE_EXTENT(_, _, _) => Ok(()),
         _ => panic!("Not Implemented yet"),
     }
 }
