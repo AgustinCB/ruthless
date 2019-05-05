@@ -387,7 +387,8 @@ fn process_command(
         BtrfsSendCommand::UTIMES(path, at, mt, _) =>
             process_utimes(path, work_bench, at.clone(), mt.clone()),
         BtrfsSendCommand::UPDATE_EXTENT(_, _, _) => Ok(()),
-        _ => panic!("Not Implemented yet"),
+        BtrfsSendCommand::SUBVOL(_, _, _) => Ok(()),
+        BtrfsSendCommand::END => Ok(()),
     }
 }
 
