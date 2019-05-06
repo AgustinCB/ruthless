@@ -401,6 +401,8 @@ fn process_snapshot(
     for c in snapshot.commands.iter() {
         process_command(c, snapshot_work_bench, name, image_repository)?;
     }
+    let mut version_file = File::create(snapshot_work_bench.join("VERSION"))?;
+    version_file.write(b"1.0")?;
     Builder::new(File::open(snapshot_work_bench.join("layer.tar"))?)
         .append_dir_all(snapshot_work_bench, ".")?;
     Ok(())
