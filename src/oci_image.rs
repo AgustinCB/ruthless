@@ -8,8 +8,9 @@ use nix::fcntl::OFlag;
 use nix::sys::stat::{Mode, SFlag, mknod, mode_t, utimensat, UtimensatFlags};
 use nix::unistd::{pipe, read, mkdir, mkfifo, symlinkat, unlink, truncate, chown, Uid, Gid};
 use nix::Error as SyscallError;
-use serde::Deserialize;
-use serde_json::from_str;
+use ring::digest::{SHA256, digest};
+use serde::{Deserialize, Serialize};
+use serde_json::{from_str, to_string};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::{read_to_string, File, read_dir, copy, rename};
@@ -19,14 +20,18 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tar::{Archive, Builder};
 use tempdir::TempDir;
-use std::io::Write;
+use std::io::{Write, Read};
 use std::os::raw::c_void;
+use std::env::consts::ARCH;
 
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
 const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct LayerJson {
+    architecture: String,
+    id: String,
+    os: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     parent: Option<String>,
 }
@@ -392,6 +397,14 @@ fn process_command(
     }
 }
 
+fn get_architecture() -> &'static str {
+    if ARCH == "x86_64" {
+        "amd64"
+    } else {
+        ARCH
+    }
+}
+
 fn process_snapshot(
     snapshot_work_bench: &PathBuf,
     snapshot: BtrfsSend,
@@ -403,8 +416,22 @@ fn process_snapshot(
     }
     let mut version_file = File::create(snapshot_work_bench.join("VERSION"))?;
     version_file.write(b"1.0")?;
-    Builder::new(File::open(snapshot_work_bench.join("layer.tar"))?)
+    Builder::new(File::create(snapshot_work_bench.join("layer.tar"))?)
         .append_dir_all(snapshot_work_bench, ".")?;
+    let mut layer_file = File::open(snapshot_work_bench.join("layer.tar"))?;
+    let mut content = Vec::new();
+    layer_file.read(&mut content)?;
+    let id_digest = digest(&SHA256, &content);
+    let mut digest = String::from("");
+    id_digest.as_ref().read_to_string(&mut digest)?;
+    let json = LayerJson {
+        architecture: get_architecture().to_owned(),
+        id: digest,
+        os: "linux".to_owned(),
+        parent: None,
+    };
+    let mut json_file = File::create(snapshot_work_bench.join("json"))?;
+    json_file.write(to_string(&json)?.as_bytes())?;
     Ok(())
 }
 
