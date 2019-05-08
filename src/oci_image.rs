@@ -410,6 +410,7 @@ fn process_snapshot(
     snapshot: BtrfsSend,
     name: &str,
     image_repository: &ImageRepository,
+    parent: Option<String>,
 ) -> Result<(), Error> {
     for c in snapshot.commands.iter() {
         process_command(c, snapshot_work_bench, name, image_repository)?;
@@ -428,7 +429,7 @@ fn process_snapshot(
         architecture: get_architecture().to_owned(),
         id: digest,
         os: "linux".to_owned(),
-        parent: None,
+        parent,
     };
     let mut json_file = File::create(snapshot_work_bench.join("json"))?;
     json_file.write(to_string(&json)?.as_bytes())?;
@@ -461,10 +462,11 @@ fn process_subvolume(
     volume: BtrfsSend,
     name: &str,
     image_repository: &ImageRepository,
+    parent: Option<String>,
 ) -> Result<(), Error> {
     let snapshot_work_bench = work_bench.join(name);
     if volume.commands.iter().find(is_subvolume).is_none() {
-        process_snapshot(&snapshot_work_bench, volume, name, image_repository)
+        process_snapshot(&snapshot_work_bench, volume, name, image_repository, parent)
     } else {
         process_base_subvolume(&snapshot_work_bench, name, image_repository)
     }
@@ -480,6 +482,7 @@ pub(crate) fn export<P: AsRef<Path>>(
         .map(|b| get_btrfs_send(image_repository, b).map(|v| (b.uuid.to_vec(), v)))
         .collect::<Result<Vec<(Vec<u8>, BtrfsSend)>, Error>>()?;
     let work_bench = TempDir::new(OCI_IMAGE_TEMP)?;
+    let mut parent = None;
     for (uuid, volume) in stack {
         let uuid = String::from_utf8(uuid)?;
         process_subvolume(
@@ -487,7 +490,9 @@ pub(crate) fn export<P: AsRef<Path>>(
             volume,
             uuid.as_str(),
             image_repository,
+            parent,
         )?;
+        parent = Some(uuid);
     }
     let mut archive_builder = Builder::new(File::open(tarball)?);
     archive_builder.append_dir_all(work_bench.path(), ".")?;
