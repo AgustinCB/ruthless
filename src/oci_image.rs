@@ -1,5 +1,6 @@
 use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand, Timespec};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
+use chrono::prelude::Utc;
 use failure::Error;
 use nix::libc::{chmod, gid_t, link, lremovexattr, lsetxattr, rmdir, uid_t};
 use nix::dir::Dir;
@@ -30,6 +31,7 @@ const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
 #[derive(Deserialize, Serialize)]
 struct LayerJson {
     architecture: String,
+    created: String,
     id: String,
     os: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -424,9 +426,11 @@ fn process_snapshot(
     layer_file.read(&mut content)?;
     let id_digest = digest(&SHA256, &content);
     let mut digest = String::from("");
+    let created = Utc::now();
     id_digest.as_ref().read_to_string(&mut digest)?;
     let json = LayerJson {
         architecture: get_architecture().to_owned(),
+        created: format!("{:?}", created),
         id: digest,
         os: "linux".to_owned(),
         parent,
