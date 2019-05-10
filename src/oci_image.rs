@@ -24,16 +24,25 @@ use tempdir::TempDir;
 use std::io::{Write, Read};
 use std::os::raw::c_void;
 use std::env::consts::ARCH;
+use uuid::Uuid;
 
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
 const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
 
 #[derive(Deserialize, Serialize)]
+struct Config {
+    #[serde(rename = "Hostname")]
+    hostname: String,
+}
+
+#[derive(Deserialize, Serialize)]
 struct LayerJson {
     architecture: String,
+    config: Config,
     created: String,
     id: String,
     os: String,
+    docker_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     parent: Option<String>,
 }
@@ -428,11 +437,16 @@ fn process_snapshot(
     let mut digest = String::from("");
     let created = Utc::now();
     id_digest.as_ref().read_to_string(&mut digest)?;
+    let config = Config {
+        hostname: Uuid::new_v4().to_string(),
+    };
     let json = LayerJson {
         architecture: get_architecture().to_owned(),
         created: format!("{:?}", created),
         id: digest,
         os: "linux".to_owned(),
+        docker_version: "18.09.2".to_owned(),
+        config,
         parent,
     };
     let mut json_file = File::create(snapshot_work_bench.join("json"))?;
