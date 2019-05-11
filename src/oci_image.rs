@@ -33,6 +33,16 @@ const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
 struct Config {
     #[serde(rename = "Hostname")]
     hostname: String,
+    #[serde(rename = "Domainname")]
+    domainname: String,
+    #[serde(rename = "User")]
+    user: String,
+    #[serde(rename = "AttachStdin")]
+    attachstdin: bool,
+    #[serde(rename = "AttachStdout")]
+    attachstdout: bool,
+    #[serde(rename = "AttachStderr")]
+    attachstderr: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -439,6 +449,11 @@ fn process_snapshot(
     id_digest.as_ref().read_to_string(&mut digest)?;
     let config = Config {
         hostname: Uuid::new_v4().to_string(),
+        domainname: String::from(""),
+        user: String::from(""),
+        attachstdin: true,
+        attachstdout: true,
+        attachstderr: true,
     };
     let json = LayerJson {
         architecture: get_architecture().to_owned(),
