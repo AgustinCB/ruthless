@@ -43,6 +43,12 @@ struct Config {
     attachstdout: bool,
     #[serde(rename = "AttachStderr")]
     attachstderr: bool,
+    #[serde(rename = "Tty")]
+    tty: bool,
+    #[serde(rename = "Openstdin")]
+    openstdin: bool,
+    #[serde(rename = "StdinOnce")]
+    stdinonce: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -454,6 +460,9 @@ fn process_snapshot(
         attachstdin: true,
         attachstdout: true,
         attachstderr: true,
+        tty: true,
+        openstdin: true,
+        stdinonce: true,
     };
     let json = LayerJson {
         architecture: get_architecture().to_owned(),
