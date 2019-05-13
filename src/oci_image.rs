@@ -49,6 +49,12 @@ struct Config {
     openstdin: bool,
     #[serde(rename = "StdinOnce")]
     stdinonce: bool,
+    #[serde(rename = "Images")]
+    image: String,
+    #[serde(rename = "Volumes")]
+    volumes: Vec<String>,
+    #[serde(rename = "WorkingDir")]
+    working_dir: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -438,6 +444,7 @@ fn process_snapshot(
     name: &str,
     image_repository: &ImageRepository,
     parent: Option<String>,
+    image_name: &str,
 ) -> Result<(), Error> {
     for c in snapshot.commands.iter() {
         process_command(c, snapshot_work_bench, name, image_repository)?;
@@ -463,6 +470,9 @@ fn process_snapshot(
         tty: true,
         openstdin: true,
         stdinonce: true,
+        image: image_name.to_owned(),
+        volumes: Vec::new(),
+        working_dir: "".to_owned()
     };
     let json = LayerJson {
         architecture: get_architecture().to_owned(),
@@ -505,10 +515,11 @@ fn process_subvolume(
     name: &str,
     image_repository: &ImageRepository,
     parent: Option<String>,
+    image_name: &str,
 ) -> Result<(), Error> {
     let snapshot_work_bench = work_bench.join(name);
     if volume.commands.iter().find(is_subvolume).is_none() {
-        process_snapshot(&snapshot_work_bench, volume, name, image_repository, parent)
+        process_snapshot(&snapshot_work_bench, volume, name, image_repository, parent, image_name)
     } else {
         process_base_subvolume(&snapshot_work_bench, name, image_repository)
     }
@@ -533,6 +544,7 @@ pub(crate) fn export<P: AsRef<Path>>(
             uuid.as_str(),
             image_repository,
             parent,
+            name,
         )?;
         parent = Some(uuid);
     }
