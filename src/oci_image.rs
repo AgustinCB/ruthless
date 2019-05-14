@@ -55,6 +55,12 @@ struct Config {
     volumes: Vec<String>,
     #[serde(rename = "WorkingDir")]
     working_dir: String,
+    #[serde(rename = "Entrypoint")]
+    entrypoint: String,
+    #[serde(rename = "OnBuild")]
+    onbuild: String,
+    #[serde(rename = "Labels")]
+    labels: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -472,7 +478,10 @@ fn process_snapshot(
         stdinonce: true,
         image: image_name.to_owned(),
         volumes: Vec::new(),
-        working_dir: "".to_owned()
+        working_dir: "".to_owned(),
+        entrypoint: "".to_owned(),
+        onbuild: "".to_owned(),
+        labels: Vec::new(),
     };
     let json = LayerJson {
         architecture: get_architecture().to_owned(),
