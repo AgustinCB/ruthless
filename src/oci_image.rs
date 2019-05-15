@@ -29,7 +29,7 @@ use uuid::Uuid;
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
 const OCI_IMAGE_REPOSITORIES_PATH: &str = "repositories";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 struct Config {
     #[serde(rename = "Hostname")]
     hostname: String,
@@ -67,6 +67,7 @@ struct Config {
 struct LayerJson {
     architecture: String,
     config: Config,
+    container_config: Config,
     created: String,
     id: String,
     os: String,
@@ -485,6 +486,7 @@ fn process_snapshot(
     };
     let json = LayerJson {
         architecture: get_architecture().to_owned(),
+        container_config: config.clone(),
         created: format!("{:?}", created),
         id: digest,
         os: "linux".to_owned(),
