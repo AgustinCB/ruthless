@@ -460,6 +460,10 @@ fn process_snapshot(
     version_file.write(b"1.0")?;
     Builder::new(File::create(snapshot_work_bench.join("layer.tar"))?)
         .append_dir_all(snapshot_work_bench, ".")?;
+    Ok(())
+}
+
+fn create_json_file(snapshot_work_bench: &PathBuf, parent: Option<String>, image_name: &str) -> Result<(), Error> {
     let mut layer_file = File::open(snapshot_work_bench.join("layer.tar"))?;
     let mut content = Vec::new();
     layer_file.read(&mut content)?;
@@ -530,10 +534,11 @@ fn process_subvolume(
 ) -> Result<(), Error> {
     let snapshot_work_bench = work_bench.join(name);
     if volume.commands.iter().find(is_subvolume).is_none() {
-        process_snapshot(&snapshot_work_bench, volume, name, image_repository, parent, image_name)
+        process_snapshot(&snapshot_work_bench, volume, name, image_repository, parent.clone(), image_name)?;
     } else {
-        process_base_subvolume(&snapshot_work_bench, name, image_repository)
+        process_base_subvolume(&snapshot_work_bench, name, image_repository)?;
     }
+    create_json_file(&snapshot_work_bench, parent, image_name)
 }
 
 pub(crate) fn export<P: AsRef<Path>>(
