@@ -450,8 +450,6 @@ fn process_snapshot(
     snapshot: BtrfsSend,
     name: &str,
     image_repository: &ImageRepository,
-    parent: Option<String>,
-    image_name: &str,
 ) -> Result<(), Error> {
     for c in snapshot.commands.iter() {
         process_command(c, snapshot_work_bench, name, image_repository)?;
@@ -534,7 +532,7 @@ fn process_subvolume(
 ) -> Result<(), Error> {
     let snapshot_work_bench = work_bench.join(name);
     if volume.commands.iter().find(is_subvolume).is_none() {
-        process_snapshot(&snapshot_work_bench, volume, name, image_repository, parent.clone(), image_name)?;
+        process_snapshot(&snapshot_work_bench, volume, name, image_repository)?;
     } else {
         process_base_subvolume(&snapshot_work_bench, name, image_repository)?;
     }
