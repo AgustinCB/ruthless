@@ -409,16 +409,16 @@ fn process_command(
     image_repository: &ImageRepository,
 ) -> Result<(), Error> {
     match c {
-        BtrfsSendCommand::SNAPSHOT(_, _, _, _, _) =>
+        BtrfsSendCommand::Snapshot(_, _, _, _, _) =>
             process_base_subvolume(work_bench, name, image_repository),
-        BtrfsSendCommand::MKFILE(local_path) => process_mkfile(local_path, work_bench),
-        BtrfsSendCommand::MKDIR(local_path) => process_mkdir(local_path, work_bench),
-        BtrfsSendCommand::MKNOD(local_path, mode, dev_t) =>
+        BtrfsSendCommand::Mkfile(local_path) => process_mkfile(local_path, work_bench),
+        BtrfsSendCommand::Mkdir(local_path) => process_mkdir(local_path, work_bench),
+        BtrfsSendCommand::Mknod(local_path, mode, dev_t) =>
             process_mknode(local_path, work_bench, *mode, *dev_t),
-        BtrfsSendCommand::MKFIFO(local_path) => process_mkfifo(local_path, work_bench),
-        BtrfsSendCommand::MKSOCK(local_path) => process_mksock(local_path, work_bench),
-        BtrfsSendCommand::SYMLINK(from, to) => process_symlink(from, to, work_bench),
-        BtrfsSendCommand::RENAME(from, to) => process_rename(from, to, work_bench),
+        BtrfsSendCommand::Mkfifo(local_path) => process_mkfifo(local_path, work_bench),
+        BtrfsSendCommand::Mksock(local_path) => process_mksock(local_path, work_bench),
+        BtrfsSendCommand::Symlink(from, to) => process_symlink(from, to, work_bench),
+        BtrfsSendCommand::Rename(from, to) => process_rename(from, to, work_bench),
         BtrfsSendCommand::LINK(from, to) => process_link(from, to, work_bench),
         BtrfsSendCommand::UNLINK(local_path) => process_unlink(local_path, work_bench),
         BtrfsSendCommand::RMDIR(local_path) => process_rmdir(local_path, work_bench),
@@ -432,7 +432,7 @@ fn process_command(
         BtrfsSendCommand::UTIMES(path, at, mt, _) =>
             process_utimes(path, work_bench, at.clone(), mt.clone()),
         BtrfsSendCommand::UPDATE_EXTENT(_, _, _) => Ok(()),
-        BtrfsSendCommand::SUBVOL(_, _, _) => Ok(()),
+        BtrfsSendCommand::Subvol(_, _, _) => Ok(()),
         BtrfsSendCommand::END => Ok(()),
     }
 }
@@ -515,7 +515,7 @@ fn process_base_subvolume(
 }
 
 fn is_subvolume(cmd: &&BtrfsSendCommand) -> bool {
-    if let BtrfsSendCommand::SUBVOL(_, _, _) = cmd {
+    if let BtrfsSendCommand::Subvol(_, _, _) = cmd {
         true
     } else {
         false

@@ -11,15 +11,15 @@ const BTRFS_UUID_SIZE: usize = 16;
 type BtrfsUuid = [u8; BTRFS_UUID_SIZE];
 
 pub(crate) enum BtrfsSendCommand {
-    SUBVOL(PathBuf, BtrfsUuid, u64),
-    SNAPSHOT(PathBuf, BtrfsUuid, u64, BtrfsUuid, u64),
-    MKFILE(PathBuf),
-    MKDIR(PathBuf),
-    MKNOD(PathBuf, u64, u64),
-    MKFIFO(PathBuf),
-    MKSOCK(PathBuf),
-    SYMLINK(PathBuf, PathBuf),
-    RENAME(PathBuf, PathBuf),
+    Subvol(PathBuf, BtrfsUuid, u64),
+    Snapshot(PathBuf, BtrfsUuid, u64, BtrfsUuid, u64),
+    Mkfile(PathBuf),
+    Mkdir(PathBuf),
+    Mknod(PathBuf, u64, u64),
+    Mkfifo(PathBuf),
+    Mksock(PathBuf),
+    Symlink(PathBuf, PathBuf),
+    Rename(PathBuf, PathBuf),
     LINK(PathBuf, PathBuf),
     UNLINK(PathBuf),
     RMDIR(PathBuf),
@@ -530,7 +530,7 @@ fn parse_rename_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::RENAME(path, path_to))
+        Ok(BtrfsSendCommand::Rename(path, path_to))
     }
 }
 
@@ -548,7 +548,7 @@ fn parse_symlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, B
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::SYMLINK(path, path_link))
+        Ok(BtrfsSendCommand::Symlink(path, path_link))
     }
 }
 
@@ -561,7 +561,7 @@ fn parse_mksock_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::MKSOCK(path))
+        Ok(BtrfsSendCommand::Mksock(path))
     }
 }
 
@@ -574,7 +574,7 @@ fn parse_mkfifo_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::MKFIFO(path))
+        Ok(BtrfsSendCommand::Mkfifo(path))
     }
 }
 
@@ -597,7 +597,7 @@ fn parse_mknod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::MKNOD(path, mode, rdev))
+        Ok(BtrfsSendCommand::Mknod(path, mode, rdev))
     }
 }
 
@@ -610,7 +610,7 @@ fn parse_mkdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::MKDIR(path))
+        Ok(BtrfsSendCommand::Mkdir(path))
     }
 }
 
@@ -623,7 +623,7 @@ fn parse_mkfile_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::MKFILE(path))
+        Ok(BtrfsSendCommand::Mkfile(path))
     }
 }
 
@@ -656,7 +656,7 @@ fn parse_snapshot_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::SNAPSHOT(path, uuid, ctransid, clone_uuid, clone_ctransid))
+        Ok(BtrfsSendCommand::Snapshot(path, uuid, ctransid, clone_uuid, clone_ctransid))
     }
 }
 
@@ -679,7 +679,7 @@ fn parse_subvol_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::SUBVOL(path, uuid, ctransid))
+        Ok(BtrfsSendCommand::Subvol(path, uuid, ctransid))
     }
 }
 
