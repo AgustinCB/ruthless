@@ -20,19 +20,19 @@ pub(crate) enum BtrfsSendCommand {
     Mksock(PathBuf),
     Symlink(PathBuf, PathBuf),
     Rename(PathBuf, PathBuf),
-    LINK(PathBuf, PathBuf),
-    UNLINK(PathBuf),
-    RMDIR(PathBuf),
-    SET_XATTR(PathBuf, String, Vec<u8>),
-    REMOVE_XATTR(PathBuf, String),
-    WRITE(PathBuf, u64, Vec<u8>),
-    CLONE(PathBuf, u64, u64, BtrfsUuid, u64, PathBuf, u64),
-    TRUNCATE(PathBuf, u64),
-    CHMOD(PathBuf, u64),
-    CHOWN(PathBuf, u64, u64),
-    UTIMES(PathBuf, Timespec, Timespec, Timespec),
-    END,
-    UPDATE_EXTENT(PathBuf, u64, u64),
+    Link(PathBuf, PathBuf),
+    Unlink(PathBuf),
+    Rmdir(PathBuf),
+    SetXattr(PathBuf, String, Vec<u8>),
+    RemoveXattr(PathBuf, String),
+    Write(PathBuf, u64, Vec<u8>),
+    Clone(PathBuf, u64, u64, BtrfsUuid, u64, PathBuf, u64),
+    Truncate(PathBuf, u64),
+    Chmod(PathBuf, u64),
+    Chown(PathBuf, u64, u64),
+    Utimes(PathBuf, Timespec, Timespec, Timespec),
+    End,
+    UpdateExtent(PathBuf, u64, u64),
 }
 
 #[derive(Clone)]
@@ -249,7 +249,7 @@ fn parse_btrfs_type(type_number: u16, data: Vec<u8>) -> Result<BtrfsSendCommand,
         18 => parse_chmod_command(&tlvs),
         19 => parse_chown_command(&tlvs),
         20 => parse_utimes_command(&tlvs),
-        21 => Ok(BtrfsSendCommand::END),
+        21 => Ok(BtrfsSendCommand::End),
         22 => parse_extent_command(&tlvs),
         _ => Err(BtrfsSendError::InvalidCommandType(type_number)),
     }
@@ -274,7 +274,7 @@ fn parse_extent_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::UPDATE_EXTENT(path, offset, size))
+        Ok(BtrfsSendCommand::UpdateExtent(path, offset, size))
     }
 }
 
@@ -302,7 +302,7 @@ fn parse_utimes_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::UTIMES(path, atime, mtime, ctime))
+        Ok(BtrfsSendCommand::Utimes(path, atime, mtime, ctime))
     }
 }
 
@@ -325,7 +325,7 @@ fn parse_chown_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::CHOWN(path, uid, gid))
+        Ok(BtrfsSendCommand::Chown(path, uid, gid))
     }
 }
 
@@ -343,7 +343,7 @@ fn parse_chmod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::CHMOD(path, mode))
+        Ok(BtrfsSendCommand::Chmod(path, mode))
     }
 }
 
@@ -361,7 +361,7 @@ fn parse_truncate_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::TRUNCATE(path, size))
+        Ok(BtrfsSendCommand::Truncate(path, size))
     }
 }
 
@@ -404,7 +404,7 @@ fn parse_clone_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::CLONE(path, offset, clone_len, clone_uuid, clone_ctransid, clone_path, clone_offset))
+        Ok(BtrfsSendCommand::Clone(path, offset, clone_len, clone_uuid, clone_ctransid, clone_path, clone_offset))
     }
 }
 
@@ -427,7 +427,7 @@ fn parse_write_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::WRITE(path, offset, data))
+        Ok(BtrfsSendCommand::Write(path, offset, data))
     }
 }
 
@@ -445,7 +445,7 @@ fn parse_rm_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::REMOVE_XATTR(path, name))
+        Ok(BtrfsSendCommand::RemoveXattr(path, name))
     }
 }
 
@@ -468,7 +468,7 @@ fn parse_set_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand,
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::SET_XATTR(path, name, data))
+        Ok(BtrfsSendCommand::SetXattr(path, name, data))
     }
 }
 
@@ -481,7 +481,7 @@ fn parse_rmdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::RMDIR(path))
+        Ok(BtrfsSendCommand::Rmdir(path))
     }
 }
 
@@ -494,7 +494,7 @@ fn parse_unlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::UNLINK(path))
+        Ok(BtrfsSendCommand::Unlink(path))
     }
 }
 
@@ -512,7 +512,7 @@ fn parse_link_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btrf
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::LINK(path, path_link))
+        Ok(BtrfsSendCommand::Link(path, path_link))
     }
 }
 
