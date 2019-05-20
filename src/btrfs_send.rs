@@ -48,30 +48,30 @@ impl Into<TimeSpec> for Timespec {
 }
 
 pub(crate) enum BtrfsSendTlv {
-    UUID([u8; BTRFS_UUID_SIZE]),
-    TRANSID(u64),
-    INODE,
-    SIZE(u64),
-    MODE(u64),
-    UID(u64),
-    GID(u64),
-    RDEV(u64),
-    CTIME(Timespec),
-    MTIME(Timespec),
-    ATIME(Timespec),
-    OTIME(Timespec),
-    XATTR_NAME(String),
-    XATTR_DATA(Vec<u8>),
-    PATH(PathBuf),
-    PATH_TO(PathBuf),
-    PATH_LINK(PathBuf),
-    OFFSET(u64),
-    DATA(Vec<u8>),
-    CLONE_UUID(BtrfsUuid),
-    CLONE_CTRANSID(u64),
-    CLONE_PATH(PathBuf),
-    CLONE_OFFSET(u64),
-    CLONE_LENGTH(u64),
+    Uuid([u8; BTRFS_UUID_SIZE]),
+    Transid(u64),
+    Inode,
+    Size(u64),
+    Mode(u64),
+    Uid(u64),
+    Gid(u64),
+    Rdev(u64),
+    Ctime(Timespec),
+    Mtime(Timespec),
+    Atime(Timespec),
+    Otime(Timespec),
+    XattrName(String),
+    XattrData(Vec<u8>),
+    Path(PathBuf),
+    PathTo(PathBuf),
+    PathLink(PathBuf),
+    Offset(u64),
+    Data(Vec<u8>),
+    CloneUuid(BtrfsUuid),
+    CloneCtransid(u64),
+    ClonePath(PathBuf),
+    CloneOffset(u64),
+    CloneLength(u64),
 }
 
 pub(crate) struct BtrfsSend {
@@ -188,30 +188,30 @@ fn parse_tlv<I: Iterator<Item = u8>>(
     let tlv_type = parse_u16(source)?;
     let length = u32::from(parse_u16(source)?);
     match tlv_type {
-        1 => Ok(Some(BtrfsSendTlv::UUID(parse_uuid(source)?))),
-        2 => Ok(Some(BtrfsSendTlv::TRANSID(parse_u64(source)?))),
-        3 => Ok(Some(BtrfsSendTlv::INODE)),
-        4 => Ok(Some(BtrfsSendTlv::SIZE(parse_u64(source)?))),
-        5 => Ok(Some(BtrfsSendTlv::MODE(parse_u64(source)?))),
-        6 => Ok(Some(BtrfsSendTlv::UID(parse_u64(source)?))),
-        7 => Ok(Some(BtrfsSendTlv::GID(parse_u64(source)?))),
-        8 => Ok(Some(BtrfsSendTlv::RDEV(parse_u64(source)?))),
-        9 => Ok(Some(BtrfsSendTlv::CTIME(parse_timespec(source)?))),
-        10 => Ok(Some(BtrfsSendTlv::MTIME(parse_timespec(source)?))),
-        11 => Ok(Some(BtrfsSendTlv::ATIME(parse_timespec(source)?))),
-        12 => Ok(Some(BtrfsSendTlv::OTIME(parse_timespec(source)?))),
-        13 => Ok(Some(BtrfsSendTlv::XATTR_NAME(parse_string(source, length)?))),
-        14 => Ok(Some(BtrfsSendTlv::XATTR_DATA(parse_data(source, length)?))),
-        15 => Ok(Some(BtrfsSendTlv::PATH(parse_path(source, length)?))),
-        16 => Ok(Some(BtrfsSendTlv::PATH_TO(parse_path(source, length)?))),
-        17 => Ok(Some(BtrfsSendTlv::PATH_LINK(parse_path(source, length)?))),
-        18 => Ok(Some(BtrfsSendTlv::OFFSET(parse_u64(source)?))),
-        19 => Ok(Some(BtrfsSendTlv::DATA(parse_data(source, length)?))),
-        20 => Ok(Some(BtrfsSendTlv::CLONE_UUID(parse_uuid(source)?))),
-        21 => Ok(Some(BtrfsSendTlv::CLONE_CTRANSID(parse_u64(source)?))),
-        22 => Ok(Some(BtrfsSendTlv::CLONE_PATH(parse_path(source, length)?))),
-        23 => Ok(Some(BtrfsSendTlv::CLONE_OFFSET(parse_u64(source)?))),
-        24 => Ok(Some(BtrfsSendTlv::CLONE_LENGTH(parse_u64(source)?))),
+        1 => Ok(Some(BtrfsSendTlv::Uuid(parse_uuid(source)?))),
+        2 => Ok(Some(BtrfsSendTlv::Transid(parse_u64(source)?))),
+        3 => Ok(Some(BtrfsSendTlv::Inode)),
+        4 => Ok(Some(BtrfsSendTlv::Size(parse_u64(source)?))),
+        5 => Ok(Some(BtrfsSendTlv::Mode(parse_u64(source)?))),
+        6 => Ok(Some(BtrfsSendTlv::Uid(parse_u64(source)?))),
+        7 => Ok(Some(BtrfsSendTlv::Gid(parse_u64(source)?))),
+        8 => Ok(Some(BtrfsSendTlv::Rdev(parse_u64(source)?))),
+        9 => Ok(Some(BtrfsSendTlv::Ctime(parse_timespec(source)?))),
+        10 => Ok(Some(BtrfsSendTlv::Mtime(parse_timespec(source)?))),
+        11 => Ok(Some(BtrfsSendTlv::Atime(parse_timespec(source)?))),
+        12 => Ok(Some(BtrfsSendTlv::Otime(parse_timespec(source)?))),
+        13 => Ok(Some(BtrfsSendTlv::XattrName(parse_string(source, length)?))),
+        14 => Ok(Some(BtrfsSendTlv::XattrData(parse_data(source, length)?))),
+        15 => Ok(Some(BtrfsSendTlv::Path(parse_path(source, length)?))),
+        16 => Ok(Some(BtrfsSendTlv::PathTo(parse_path(source, length)?))),
+        17 => Ok(Some(BtrfsSendTlv::PathLink(parse_path(source, length)?))),
+        18 => Ok(Some(BtrfsSendTlv::Offset(parse_u64(source)?))),
+        19 => Ok(Some(BtrfsSendTlv::Data(parse_data(source, length)?))),
+        20 => Ok(Some(BtrfsSendTlv::CloneUuid(parse_uuid(source)?))),
+        21 => Ok(Some(BtrfsSendTlv::CloneCtransid(parse_u64(source)?))),
+        22 => Ok(Some(BtrfsSendTlv::ClonePath(parse_path(source, length)?))),
+        23 => Ok(Some(BtrfsSendTlv::CloneOffset(parse_u64(source)?))),
+        24 => Ok(Some(BtrfsSendTlv::CloneLength(parse_u64(source)?))),
         _ => Err(BtrfsSendError::InvalidTlvType(tlv_type)),
     }
 }
@@ -259,17 +259,17 @@ fn parse_extent_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let offset = if let BtrfsSendTlv::OFFSET(offset) = &tlvs[1] {
+        let offset = if let BtrfsSendTlv::Offset(offset) = &tlvs[1] {
             Ok(*offset)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let size = if let BtrfsSendTlv::SIZE(size) = &tlvs[1] {
+        let size = if let BtrfsSendTlv::Size(size) = &tlvs[1] {
             Ok(*size)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -282,22 +282,22 @@ fn parse_utimes_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 4 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 4))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let atime = if let BtrfsSendTlv::ATIME(a) = &tlvs[1] {
+        let atime = if let BtrfsSendTlv::Atime(a) = &tlvs[1] {
             Ok(a.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let mtime = if let BtrfsSendTlv::MTIME(m) = &tlvs[2] {
+        let mtime = if let BtrfsSendTlv::Mtime(m) = &tlvs[2] {
             Ok(m.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let ctime = if let BtrfsSendTlv::CTIME(c) = &tlvs[3] {
+        let ctime = if let BtrfsSendTlv::Ctime(c) = &tlvs[3] {
             Ok(c.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -310,17 +310,17 @@ fn parse_chown_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let uid = if let BtrfsSendTlv::UID(u) = &tlvs[1] {
+        let uid = if let BtrfsSendTlv::Uid(u) = &tlvs[1] {
             Ok(*u)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let gid = if let BtrfsSendTlv::GID(g) = &tlvs[2] {
+        let gid = if let BtrfsSendTlv::Gid(g) = &tlvs[2] {
             Ok(*g)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -333,12 +333,12 @@ fn parse_chmod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let mode = if let BtrfsSendTlv::MODE(m) = &tlvs[1] {
+        let mode = if let BtrfsSendTlv::Mode(m) = &tlvs[1] {
             Ok(*m)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -351,12 +351,12 @@ fn parse_truncate_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let size = if let BtrfsSendTlv::SIZE(s) = &tlvs[1] {
+        let size = if let BtrfsSendTlv::Size(s) = &tlvs[1] {
             Ok(*s)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -369,37 +369,37 @@ fn parse_clone_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     if tlvs.len() != 7 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 7))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let offset = if let BtrfsSendTlv::OFFSET(offset) = &tlvs[1] {
+        let offset = if let BtrfsSendTlv::Offset(offset) = &tlvs[1] {
             Ok(*offset)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let clone_len = if let BtrfsSendTlv::CLONE_LENGTH(len) = &tlvs[2] {
+        let clone_len = if let BtrfsSendTlv::CloneLength(len) = &tlvs[2] {
             Ok(*len)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let clone_uuid = if let BtrfsSendTlv::UUID(uuid) = &tlvs[3] {
+        let clone_uuid = if let BtrfsSendTlv::Uuid(uuid) = &tlvs[3] {
             Ok(*uuid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let clone_ctransid = if let BtrfsSendTlv::CLONE_CTRANSID(trandid) = &tlvs[4] {
+        let clone_ctransid = if let BtrfsSendTlv::CloneCtransid(trandid) = &tlvs[4] {
             Ok(*trandid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let clone_path = if let BtrfsSendTlv::CLONE_PATH(p) = &tlvs[5] {
+        let clone_path = if let BtrfsSendTlv::ClonePath(p) = &tlvs[5] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let clone_offset = if let BtrfsSendTlv::CLONE_OFFSET(o) = &tlvs[6] {
+        let clone_offset = if let BtrfsSendTlv::CloneOffset(o) = &tlvs[6] {
             Ok(*o)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -412,17 +412,17 @@ fn parse_write_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let offset = if let BtrfsSendTlv::OFFSET(offset) = &tlvs[1] {
+        let offset = if let BtrfsSendTlv::Offset(offset) = &tlvs[1] {
             Ok(*offset)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let data = if let BtrfsSendTlv::DATA(data) = &tlvs[2] {
+        let data = if let BtrfsSendTlv::Data(data) = &tlvs[2] {
             Ok(data.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -435,12 +435,12 @@ fn parse_rm_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let name = if let BtrfsSendTlv::XATTR_NAME(name) = &tlvs[1] {
+        let name = if let BtrfsSendTlv::XattrName(name) = &tlvs[1] {
             Ok(name.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -453,17 +453,17 @@ fn parse_set_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand,
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let name = if let BtrfsSendTlv::XATTR_NAME(name) = &tlvs[1] {
+        let name = if let BtrfsSendTlv::XattrName(name) = &tlvs[1] {
             Ok(name.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let data = if let BtrfsSendTlv::XATTR_DATA(data) = &tlvs[2] {
+        let data = if let BtrfsSendTlv::XattrData(data) = &tlvs[2] {
             Ok(data.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -476,7 +476,7 @@ fn parse_rmdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -489,7 +489,7 @@ fn parse_unlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -502,12 +502,12 @@ fn parse_link_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btrf
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let path_link = if let BtrfsSendTlv::PATH_LINK(p) = &tlvs[0] {
+        let path_link = if let BtrfsSendTlv::PathLink(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -520,12 +520,12 @@ fn parse_rename_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let path_to = if let BtrfsSendTlv::PATH_TO(p) = &tlvs[0] {
+        let path_to = if let BtrfsSendTlv::PathTo(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -538,12 +538,12 @@ fn parse_symlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, B
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let path_link = if let BtrfsSendTlv::PATH_LINK(p) = &tlvs[0] {
+        let path_link = if let BtrfsSendTlv::PathLink(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -556,7 +556,7 @@ fn parse_mksock_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -569,7 +569,7 @@ fn parse_mkfifo_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -582,17 +582,17 @@ fn parse_mknod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let mode = if let BtrfsSendTlv::MODE(mode) = &tlvs[1] {
+        let mode = if let BtrfsSendTlv::Mode(mode) = &tlvs[1] {
             Ok(*mode)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let rdev = if let BtrfsSendTlv::RDEV(rdev) = &tlvs[2] {
+        let rdev = if let BtrfsSendTlv::Rdev(rdev) = &tlvs[2] {
             Ok(*rdev)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -605,7 +605,7 @@ fn parse_mkdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -618,7 +618,7 @@ fn parse_mkfile_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -631,27 +631,27 @@ fn parse_snapshot_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
     if tlvs.len() != 5 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 5))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let uuid = if let BtrfsSendTlv::UUID(uuid) = &tlvs[1] {
+        let uuid = if let BtrfsSendTlv::Uuid(uuid) = &tlvs[1] {
             Ok(*uuid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let ctransid = if let BtrfsSendTlv::CLONE_CTRANSID(trandid) = &tlvs[2] {
+        let ctransid = if let BtrfsSendTlv::CloneCtransid(trandid) = &tlvs[2] {
             Ok(*trandid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let clone_uuid = if let BtrfsSendTlv::UUID(uuid) = &tlvs[3] {
+        let clone_uuid = if let BtrfsSendTlv::Uuid(uuid) = &tlvs[3] {
             Ok(*uuid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let clone_ctransid = if let BtrfsSendTlv::CLONE_CTRANSID(trandid) = &tlvs[4] {
+        let clone_ctransid = if let BtrfsSendTlv::CloneCtransid(trandid) = &tlvs[4] {
             Ok(*trandid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
@@ -664,17 +664,17 @@ fn parse_subvol_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
-        let path = if let BtrfsSendTlv::PATH(p) = &tlvs[0] {
+        let path = if let BtrfsSendTlv::Path(p) = &tlvs[0] {
             Ok(p.clone())
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let uuid = if let BtrfsSendTlv::UUID(uuid) = &tlvs[1] {
+        let uuid = if let BtrfsSendTlv::Uuid(uuid) = &tlvs[1] {
             Ok(*uuid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        let ctransid = if let BtrfsSendTlv::CLONE_CTRANSID(trandid) = &tlvs[2] {
+        let ctransid = if let BtrfsSendTlv::CloneCtransid(trandid) = &tlvs[2] {
             Ok(*trandid)
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
