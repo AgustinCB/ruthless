@@ -539,6 +539,17 @@ fn process_subvolume(
     create_json_file(&snapshot_work_bench, parent, image_name)
 }
 
+fn create_repositories_file(name: &str, latest: &str, work_bench: &Path) -> Result<(), Error> {
+    let mut repositories_content = HashMap::new();
+    repositories_content.insert("latest", latest);
+    let mut repositories = HashMap::new();
+    repositories.insert(name, repositories_content);
+    let content = to_string(&repositories)?;
+    let mut repositories_file = File::create(work_bench.join("repositories"))?;
+    repositories_file.write(content.as_bytes())?;
+    Ok(())
+}
+
 pub(crate) fn export<P: AsRef<Path>>(
     image_repository: &ImageRepository,
     name: &str,
@@ -564,6 +575,7 @@ pub(crate) fn export<P: AsRef<Path>>(
     }
     let mut archive_builder = Builder::new(File::open(tarball)?);
     archive_builder.append_dir_all(work_bench.path(), ".")?;
+    create_repositories_file(name, parent.unwrap().as_str(), work_bench.path())?;
     Ok(())
 }
 
