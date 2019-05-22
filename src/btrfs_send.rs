@@ -1,8 +1,8 @@
+use nix::sys::time::{TimeSpec, TimeValLike};
 use std::convert::TryFrom;
 use std::iter::Peekable;
 use std::mem::transmute;
 use std::path::PathBuf;
-use nix::sys::time::{TimeSpec, TimeValLike};
 
 const MAGIC_NUMBER: &[u8] = &[
     0x62, 0x74, 0x72, 0x66, 0x73, 0x2d, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d, 0x00,
@@ -404,7 +404,15 @@ fn parse_clone_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::Clone(path, offset, clone_len, clone_uuid, clone_ctransid, clone_path, clone_offset))
+        Ok(BtrfsSendCommand::Clone(
+            path,
+            offset,
+            clone_len,
+            clone_uuid,
+            clone_ctransid,
+            clone_path,
+            clone_offset,
+        ))
     }
 }
 
@@ -656,7 +664,13 @@ fn parse_snapshot_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
         } else {
             Err(BtrfsSendError::UnexpectedTlv)
         }?;
-        Ok(BtrfsSendCommand::Snapshot(path, uuid, ctransid, clone_uuid, clone_ctransid))
+        Ok(BtrfsSendCommand::Snapshot(
+            path,
+            uuid,
+            ctransid,
+            clone_uuid,
+            clone_ctransid,
+        ))
     }
 }
 

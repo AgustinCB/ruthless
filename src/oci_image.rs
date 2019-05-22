@@ -2,28 +2,28 @@ use crate::btrfs_send::{BtrfsSend, BtrfsSendCommand, Timespec};
 use crate::images::{btrfs_ioc_send, BtrfsSendArgs, BtrfsSubvolInfo, ImageRepository};
 use chrono::prelude::Utc;
 use failure::Error;
-use nix::libc::{chmod, gid_t, link, lremovexattr, lsetxattr, rmdir, uid_t};
 use nix::dir::Dir;
-use nix::errno::{Errno, errno};
+use nix::errno::{errno, Errno};
 use nix::fcntl::OFlag;
-use nix::sys::stat::{Mode, SFlag, mknod, mode_t, utimensat, UtimensatFlags};
-use nix::unistd::{pipe, read, mkdir, mkfifo, symlinkat, unlink, truncate, chown, Uid, Gid};
+use nix::libc::{chmod, gid_t, link, lremovexattr, lsetxattr, rmdir, uid_t};
+use nix::sys::stat::{mknod, mode_t, utimensat, Mode, SFlag, UtimensatFlags};
+use nix::unistd::{chown, mkdir, mkfifo, pipe, read, symlinkat, truncate, unlink, Gid, Uid};
 use nix::Error as SyscallError;
-use ring::digest::{SHA256, digest};
+use ring::digest::{digest, SHA256};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::fs::{read_to_string, File, read_dir, copy, rename};
+use std::env::consts::ARCH;
+use std::fs::{copy, read_dir, read_to_string, rename, File};
+use std::io::{Read, Write};
+use std::os::raw::c_void;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tar::{Archive, Builder};
 use tempdir::TempDir;
-use std::io::{Write, Read};
-use std::os::raw::c_void;
-use std::env::consts::ARCH;
 use uuid::Uuid;
 
 const OCI_IMAGE_TEMP: &str = "ruthless_oci_image";
@@ -184,7 +184,8 @@ fn get_btrfs_subvolume_stack(
 }
 
 fn path_to_c_pointer(path: &PathBuf) -> *const i8 {
-    let chars: Vec<i8> = path.as_os_str()
+    let chars: Vec<i8> = path
+        .as_os_str()
         .to_string_lossy()
         .as_bytes()
         .iter()
@@ -194,9 +195,7 @@ fn path_to_c_pointer(path: &PathBuf) -> *const i8 {
 }
 
 fn safe_chmod(path: &PathBuf, mode: mode_t) -> Result<(), Error> {
-    let res = unsafe {
-        chmod(path_to_c_pointer(path), mode)
-    };
+    let res = unsafe { chmod(path_to_c_pointer(path), mode) };
     if res == 0 {
         Ok(())
     } else {
@@ -209,7 +208,11 @@ fn safe_lremovexattr(path: &PathBuf, name: &str) -> Result<(), Error> {
     let res = unsafe {
         lremovexattr(
             path_to_c_pointer(path),
-            name.as_bytes().iter().map(|v| *v as i8).collect::<Vec<i8>>().as_ptr(),
+            name.as_bytes()
+                .iter()
+                .map(|v| *v as i8)
+                .collect::<Vec<i8>>()
+                .as_ptr(),
         )
     };
     if res == 0 {
@@ -224,10 +227,14 @@ fn safe_lsetxattr(path: &PathBuf, name: &str, data: &[u8]) -> Result<(), Error> 
     let res = unsafe {
         lsetxattr(
             path_to_c_pointer(path),
-            name.as_bytes().iter().map(|v| *v as i8).collect::<Vec<i8>>().as_ptr(),
+            name.as_bytes()
+                .iter()
+                .map(|v| *v as i8)
+                .collect::<Vec<i8>>()
+                .as_ptr(),
             data.as_ptr() as *const c_void,
             data.len(),
-            0
+            0,
         )
     };
     if res == 0 {
@@ -265,7 +272,13 @@ fn process_utimes(
     mt: Timespec,
 ) -> Result<(), Error> {
     let full_path = work_bench.join(local_path);
-    utimensat(None, &full_path, &at.into(), &mt.into(), UtimensatFlags::NoFollowSymlink)?;
+    utimensat(
+        None,
+        &full_path,
+        &at.into(),
+        &mt.into(),
+        UtimensatFlags::NoFollowSymlink,
+    )?;
     Ok(())
 }
 
@@ -276,24 +289,20 @@ fn process_chown(
     gid: u64,
 ) -> Result<(), Error> {
     let full_path = work_bench.join(local_path);
-    chown(&full_path, Some(Uid::from_raw(uid as uid_t)), Some(Gid::from_raw(gid as gid_t)))?;
+    chown(
+        &full_path,
+        Some(Uid::from_raw(uid as uid_t)),
+        Some(Gid::from_raw(gid as gid_t)),
+    )?;
     Ok(())
 }
 
-fn process_chmod(
-    local_path: &PathBuf,
-    work_bench: &PathBuf,
-    mode: u64,
-) -> Result<(), Error> {
+fn process_chmod(local_path: &PathBuf, work_bench: &PathBuf, mode: u64) -> Result<(), Error> {
     let full_path = work_bench.join(local_path);
     safe_chmod(&full_path, mode as mode_t)
 }
 
-fn process_truncate(
-    local_path: &PathBuf,
-    work_bench: &PathBuf,
-    size: u64,
-) -> Result<(), Error> {
+fn process_truncate(local_path: &PathBuf, work_bench: &PathBuf, size: u64) -> Result<(), Error> {
     let full_path = work_bench.join(local_path);
     truncate(&full_path, size as i64)?;
     Ok(())
@@ -338,7 +347,11 @@ fn process_unlink(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Erro
     Ok(())
 }
 
-fn process_link(local_path: &PathBuf, to_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+fn process_link(
+    local_path: &PathBuf,
+    to_path: &PathBuf,
+    work_bench: &PathBuf,
+) -> Result<(), Error> {
     let full_to_path = work_bench.join(to_path);
     let full_from_path = work_bench.join(local_path);
     safe_link(&full_from_path, &full_to_path)
@@ -351,7 +364,11 @@ fn process_rename(from: &PathBuf, to: &PathBuf, work_bench: &PathBuf) -> Result<
     Ok(())
 }
 
-fn process_symlink(local_path: &PathBuf, to_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
+fn process_symlink(
+    local_path: &PathBuf,
+    to_path: &PathBuf,
+    work_bench: &PathBuf,
+) -> Result<(), Error> {
     let full_to_path = work_bench.join(to_path);
     let dir = Dir::open(work_bench, OFlag::empty(), Mode::empty())?;
     symlinkat(&full_to_path, Some(dir.as_raw_fd()), local_path)?;
@@ -360,7 +377,12 @@ fn process_symlink(local_path: &PathBuf, to_path: &PathBuf, work_bench: &PathBuf
 
 fn process_mksock(local_path: &PathBuf, work_bench: &PathBuf) -> Result<(), Error> {
     let full_path = work_bench.join(local_path);
-    mknod(&full_path, SFlag::S_IFSOCK,Mode::from_bits(0o600 as mode_t).unwrap(), 0)?;
+    mknod(
+        &full_path,
+        SFlag::S_IFSOCK,
+        Mode::from_bits(0o600 as mode_t).unwrap(),
+        0,
+    )?;
     Ok(())
 }
 
@@ -382,7 +404,7 @@ fn process_mknode(
         SFlag::S_IFMT,
         Mode::from_bits(mode as mode_t)
             .ok_or_else(|| OCIImageError::InvalidMode(mode as mode_t))?,
-        dev_t
+        dev_t,
     )?;
     Ok(())
 }
@@ -409,12 +431,14 @@ fn process_command(
     image_repository: &ImageRepository,
 ) -> Result<(), Error> {
     match c {
-        BtrfsSendCommand::Snapshot(_, _, _, _, _) =>
-            process_base_subvolume(work_bench, name, image_repository),
+        BtrfsSendCommand::Snapshot(_, _, _, _, _) => {
+            process_base_subvolume(work_bench, name, image_repository)
+        }
         BtrfsSendCommand::Mkfile(local_path) => process_mkfile(local_path, work_bench),
         BtrfsSendCommand::Mkdir(local_path) => process_mkdir(local_path, work_bench),
-        BtrfsSendCommand::Mknod(local_path, mode, dev_t) =>
-            process_mknode(local_path, work_bench, *mode, *dev_t),
+        BtrfsSendCommand::Mknod(local_path, mode, dev_t) => {
+            process_mknode(local_path, work_bench, *mode, *dev_t)
+        }
         BtrfsSendCommand::Mkfifo(local_path) => process_mkfifo(local_path, work_bench),
         BtrfsSendCommand::Mksock(local_path) => process_mksock(local_path, work_bench),
         BtrfsSendCommand::Symlink(from, to) => process_symlink(from, to, work_bench),
@@ -422,15 +446,20 @@ fn process_command(
         BtrfsSendCommand::Link(from, to) => process_link(from, to, work_bench),
         BtrfsSendCommand::Unlink(local_path) => process_unlink(local_path, work_bench),
         BtrfsSendCommand::Rmdir(local_path) => process_rmdir(local_path, work_bench),
-        BtrfsSendCommand::SetXattr(path, name, data) => process_set_xattr(path, work_bench, name.as_str(), data),
-        BtrfsSendCommand::RemoveXattr(local_path, name) => process_remove_xattr(local_path, work_bench, name.as_str()),
+        BtrfsSendCommand::SetXattr(path, name, data) => {
+            process_set_xattr(path, work_bench, name.as_str(), data)
+        }
+        BtrfsSendCommand::RemoveXattr(local_path, name) => {
+            process_remove_xattr(local_path, work_bench, name.as_str())
+        }
         BtrfsSendCommand::Write(local_path, _, data) => process_write(local_path, work_bench, data),
         BtrfsSendCommand::Clone(_, _, _, _, _, _, _) => Ok(()),
         BtrfsSendCommand::Truncate(path, size) => process_truncate(path, work_bench, *size),
         BtrfsSendCommand::Chmod(path, mode) => process_chmod(path, work_bench, *mode),
         BtrfsSendCommand::Chown(path, uid, gid) => process_chown(path, work_bench, *uid, *gid),
-        BtrfsSendCommand::Utimes(path, at, mt, _) =>
-            process_utimes(path, work_bench, at.clone(), mt.clone()),
+        BtrfsSendCommand::Utimes(path, at, mt, _) => {
+            process_utimes(path, work_bench, at.clone(), mt.clone())
+        }
         BtrfsSendCommand::UpdateExtent(_, _, _) => Ok(()),
         BtrfsSendCommand::Subvol(_, _, _) => Ok(()),
         BtrfsSendCommand::End => Ok(()),
@@ -461,7 +490,11 @@ fn process_snapshot(
     Ok(())
 }
 
-fn create_json_file(snapshot_work_bench: &PathBuf, parent: Option<String>, image_name: &str) -> Result<(), Error> {
+fn create_json_file(
+    snapshot_work_bench: &PathBuf,
+    parent: Option<String>,
+    image_name: &str,
+) -> Result<(), Error> {
     let mut layer_file = File::open(snapshot_work_bench.join("layer.tar"))?;
     let mut content = Vec::new();
     layer_file.read(&mut content)?;
