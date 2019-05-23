@@ -332,7 +332,7 @@ fn process_remove_xattr(
 fn process_write(local_path: &PathBuf, work_bench: &PathBuf, data: &[u8]) -> Result<(), Error> {
     let full_path = work_bench.join(local_path);
     let mut file = File::open(&full_path)?;
-    file.write(&data)?;
+    file.write_all(&data)?;
     Ok(())
 }
 
@@ -484,7 +484,7 @@ fn process_snapshot(
         process_command(c, snapshot_work_bench, name, image_repository)?;
     }
     let mut version_file = File::create(snapshot_work_bench.join("VERSION"))?;
-    version_file.write(b"1.0")?;
+    version_file.write_all(b"1.0")?;
     Builder::new(File::create(snapshot_work_bench.join("layer.tar"))?)
         .append_dir_all(snapshot_work_bench, ".")?;
     Ok(())
@@ -497,7 +497,7 @@ fn create_json_file(
 ) -> Result<(), Error> {
     let mut layer_file = File::open(snapshot_work_bench.join("layer.tar"))?;
     let mut content = Vec::new();
-    layer_file.read(&mut content)?;
+    layer_file.read_exact(&mut content)?;
     let id_digest = digest(&SHA256, &content);
     let mut digest = String::from("");
     let created = Utc::now();
@@ -530,7 +530,7 @@ fn create_json_file(
         parent,
     };
     let mut json_file = File::create(snapshot_work_bench.join("json"))?;
-    json_file.write(to_string(&json)?.as_bytes())?;
+    json_file.write_all(to_string(&json)?.as_bytes())?;
     Ok(())
 }
 
@@ -547,7 +547,7 @@ fn process_base_subvolume(
     Ok(())
 }
 
-fn is_subvolume(cmd: &&BtrfsSendCommand) -> bool {
+fn is_subvolume(cmd: &BtrfsSendCommand) -> bool {
     if let BtrfsSendCommand::Subvol(_, _, _) = cmd {
         true
     } else {
@@ -564,7 +564,7 @@ fn process_subvolume(
     image_name: &str,
 ) -> Result<(), Error> {
     let snapshot_work_bench = work_bench.join(name);
-    if volume.commands.iter().find(is_subvolume).is_none() {
+    if volume.commands.iter().find(|c| is_subvolume(*c)).is_none() {
         process_snapshot(&snapshot_work_bench, volume, name, image_repository)?;
     } else {
         process_base_subvolume(&snapshot_work_bench, name, image_repository)?;
@@ -579,7 +579,7 @@ fn create_repositories_file(name: &str, latest: &str, work_bench: &Path) -> Resu
     repositories.insert(name, repositories_content);
     let content = to_string(&repositories)?;
     let mut repositories_file = File::create(work_bench.join("repositories"))?;
-    repositories_file.write(content.as_bytes())?;
+    repositories_file.write_all(content.as_bytes())?;
     Ok(())
 }
 
