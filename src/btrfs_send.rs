@@ -43,7 +43,7 @@ pub(crate) struct Timespec {
 
 impl Into<TimeSpec> for Timespec {
     fn into(self) -> TimeSpec {
-        TimeSpec::nanoseconds(self.nsecs as i64)
+        TimeSpec::nanoseconds(i64::from(self.nsecs))
     }
 }
 
@@ -255,7 +255,7 @@ fn parse_btrfs_type(type_number: u16, data: Vec<u8>) -> Result<BtrfsSendCommand,
     }
 }
 
-fn parse_extent_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_extent_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
@@ -278,7 +278,7 @@ fn parse_extent_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     }
 }
 
-fn parse_utimes_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_utimes_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 4 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 4))
     } else {
@@ -306,7 +306,7 @@ fn parse_utimes_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     }
 }
 
-fn parse_chown_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_chown_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
@@ -329,7 +329,7 @@ fn parse_chown_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     }
 }
 
-fn parse_chmod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_chmod_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
@@ -347,7 +347,7 @@ fn parse_chmod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     }
 }
 
-fn parse_truncate_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_truncate_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
@@ -365,7 +365,7 @@ fn parse_truncate_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
     }
 }
 
-fn parse_clone_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_clone_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 7 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 7))
     } else {
@@ -416,7 +416,7 @@ fn parse_clone_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     }
 }
 
-fn parse_write_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_write_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
@@ -439,7 +439,7 @@ fn parse_write_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     }
 }
 
-fn parse_rm_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_rm_xattr_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
@@ -457,7 +457,7 @@ fn parse_rm_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
     }
 }
 
-fn parse_set_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_set_xattr_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
@@ -480,7 +480,7 @@ fn parse_set_xattr_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand,
     }
 }
 
-fn parse_rmdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_rmdir_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
@@ -493,7 +493,7 @@ fn parse_rmdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     }
 }
 
-fn parse_unlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_unlink_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
@@ -506,7 +506,7 @@ fn parse_unlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     }
 }
 
-fn parse_link_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_link_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
@@ -524,7 +524,7 @@ fn parse_link_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btrf
     }
 }
 
-fn parse_rename_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_rename_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
@@ -542,7 +542,7 @@ fn parse_rename_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     }
 }
 
-fn parse_symlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_symlink_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 2 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 2))
     } else {
@@ -560,7 +560,7 @@ fn parse_symlink_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, B
     }
 }
 
-fn parse_mksock_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_mksock_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
@@ -573,7 +573,7 @@ fn parse_mksock_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     }
 }
 
-fn parse_mkfifo_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_mkfifo_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
@@ -586,7 +586,7 @@ fn parse_mkfifo_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     }
 }
 
-fn parse_mknod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_mknod_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
@@ -609,7 +609,7 @@ fn parse_mknod_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     }
 }
 
-fn parse_mkdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_mkdir_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
@@ -622,7 +622,7 @@ fn parse_mkdir_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Btr
     }
 }
 
-fn parse_mkfile_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_mkfile_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 1 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 1))
     } else {
@@ -635,7 +635,7 @@ fn parse_mkfile_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, Bt
     }
 }
 
-fn parse_snapshot_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_snapshot_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 5 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 5))
     } else {
@@ -674,7 +674,7 @@ fn parse_snapshot_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, 
     }
 }
 
-fn parse_subvol_command(tlvs: &Vec<BtrfsSendTlv>) -> Result<BtrfsSendCommand, BtrfsSendError> {
+fn parse_subvol_command(tlvs: &[BtrfsSendTlv]) -> Result<BtrfsSendCommand, BtrfsSendError> {
     if tlvs.len() != 3 {
         Err(BtrfsSendError::WrongNumberOfTlvs(tlvs.len(), 3))
     } else {
@@ -709,7 +709,7 @@ fn parse_btrfs_command<I: Iterator<Item = u8>>(
     let data = parse_data(source, length)?;
     let data_checksum = data.iter().cloned().map(u32::from).sum();
     if data_checksum == checksum {
-        parse_btrfs_type(type_number, data).map(|v| Some(v))
+        parse_btrfs_type(type_number, data).map(Some)
     } else {
         Err(BtrfsSendError::InvalidChecksume(checksum, data_checksum))
     }
