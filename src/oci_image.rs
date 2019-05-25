@@ -304,7 +304,7 @@ fn process_chmod(local_path: &PathBuf, work_bench: &PathBuf, mode: u64) -> Resul
 
 fn process_truncate(local_path: &PathBuf, work_bench: &PathBuf, size: u64) -> Result<(), Error> {
     let full_path = work_bench.join(local_path);
-    truncate(&full_path, size as i64)?;
+    truncate(&full_path, size as _)?;
     Ok(())
 }
 
@@ -404,7 +404,7 @@ fn process_mknode(
         SFlag::S_IFMT,
         Mode::from_bits(mode as mode_t)
             .ok_or_else(|| OCIImageError::InvalidMode(mode as mode_t))?,
-        dev_t,
+        dev_t as _,
     )?;
     Ok(())
 }
