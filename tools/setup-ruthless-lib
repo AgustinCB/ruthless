@@ -11,7 +11,7 @@ RUTHLESS_CGROUP="$CGROUP_PATH/user.slice/user-$USER_ID.slice/user@$USER_ID.servi
 
 mkdir -p "$RUTHLESS_PATH"
 mkdir -p "$IMAGES_PATH"
-mkdir -p "RUTHLESS_CGROUP"
+mkdir -p "$RUTHLESS_CGROUP"
 
 cat "$RUTHLESS_CGROUP/cgroup.controllers" | tr ' ' '\n' | xargs -I {} echo "+{}" > "$RUTHLESS_CGROUP/cgroup.subtree_control"
 
