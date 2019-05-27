@@ -35,6 +35,7 @@ ruthless container delete [container] # Kill running containers
 ruthless container list # List all running containers
 ruthless image list # List images in the system
 ruthless image delete [image] # Deletes image [image]
+ruthless export [image] [tarball] # Export [image] into the location [tarball]
 ruthless import [tarball] # Import a OCI compatible tarball into the image repository
 ruthless help # See this message
 ruthless help [command] # Describe what an specific command does";
@@ -97,6 +98,9 @@ Attempts to delete the image [image] from the repository.";
 const USAGE_IMPORT: &str = "Usage: ruthless import [tarball]
 
 Import a OCI tarball image into the ruthless image repository.";
+const USAGE_EXPORT: &str = "Usage: ruthless export [image] [tarball]
+
+Export an image into a docker compatible tarball.";
 const USAGE_LOGS: &str = "Usage: ruthless logs [container]
 
 Prints the standard output of the container into the current standard output and the standard error
@@ -182,6 +186,7 @@ fn main() {
             "container delete" => println!("{}", USAGE_CONTAINER_DELETE),
             "image delete" => println!("{}", USAGE_IMAGE_DELETE),
             "image list" => println!("{}", USAGE_IMAGE_LIST),
+            "export" => println!("{}", USAGE_EXPORT),
             "import" => println!("{}", USAGE_IMPORT),
             "logs" => println!("{}", USAGE_LOGS),
             "run" => println!("{}", USAGE_RUN),
