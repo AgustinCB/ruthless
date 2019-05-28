@@ -18,9 +18,11 @@ pub(crate) const BTRFS_IOC_SNAP_CREATE: u64 = 1;
 pub(crate) const BTRFS_IOC_SUBVOL_CREATE: u64 = 14;
 pub(crate) const BTRFS_IOC_SNAP_DESTROY: u64 = 15;
 pub(crate) const BTRFS_IOC_SEND: u64 = 38;
+pub(crate) const BTRFS_IOC_INO_LOOKUP_USER: u64 = 62;
 const BTRFS_PATH_NAME_MAX: usize = 4087;
 const BTRFS_VOL_NAME_MAX: usize = 255;
 const BTRFS_UUID_SIZE: usize = 16;
+const BTRFS_INO_LOOKUP_PATH_MAX: usize = 4080;
 const LIB_LOCATION: &str = ".local/lib/ruthless/images";
 
 #[repr(C)]
@@ -58,6 +60,15 @@ pub struct BtrfsSendArgs<'a> {
 pub struct BtrfsTimespec {
     sec: u64,
     nsec: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct InoLookup {
+    dirid: u64,
+    treeid: u64,
+    name: [char; BTRFS_VOL_NAME_MAX + 1],
+    path: [char; BTRFS_INO_LOOKUP_PATH_MAX],
 }
 
 #[repr(C)]
