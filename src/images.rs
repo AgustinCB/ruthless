@@ -64,7 +64,7 @@ pub struct BtrfsTimespec {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct InoLookup {
+pub struct InoLookup {
     dirid: u64,
     treeid: u64,
     name: [char; BTRFS_VOL_NAME_MAX + 1],
@@ -142,6 +142,12 @@ ioctl_read!(
     BTRFS_IOCTL_MAGIC,
     BTRFS_IOC_GET_SUBVOL_INFO,
     BtrfsSubvolInfo
+);
+ioctl_readwrite!(
+    btrfs_ioc_ino_lookup,
+    BTRFS_IOCTL_MAGIC,
+    BTRFS_IOC_INO_LOOKUP_USER,
+    InoLookup
 );
 ioctl_write_ptr!(
     btrfs_ioc_send,
