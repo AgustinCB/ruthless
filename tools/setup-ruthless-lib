@@ -7,21 +7,22 @@ IMAGES_PATH="$RUTHLESS_PATH/images"
 DEVICE_PATH="$RUTHLESS_PATH/device.img"
 CGROUP_PATH=$(cat /proc/mounts | grep cgroup2 | awk '{print $2}')
 USER_ID=$(id -u)
+USER=$(whoami)
+GROUP=$(id -gn)
 RUTHLESS_CGROUP="$CGROUP_PATH/user.slice/user-$USER_ID.slice/user@$USER_ID.service/ruthless"
 
 mkdir -p "$RUTHLESS_PATH"
 mkdir -p "$IMAGES_PATH"
-mkdir -p "$RUTHLESS_CGROUP"
+sudo mkdir -p "$RUTHLESS_CGROUP"
+sudo chown "$USER":"$GROUP" "$RUTHLESS_CGROUP" $RUTHLESS_CGROUP/*
 
-cat "$RUTHLESS_CGROUP/cgroup.controllers" | tr ' ' '\n' | xargs -I {} echo "+{}" > "$RUTHLESS_CGROUP/cgroup.subtree_control"
+cat "$RUTHLESS_CGROUP/cgroup.controllers" | tr ' ' '\n' | sudo bash -c 'xargs -I {} echo "+{}" > "$RUTHLESS_CGROUP/cgroup.subtree_control"'
 
 if [ ! -f "$DEVICE_PATH" ]; then
     truncate -s10G "$DEVICE_PATH"
-    mkfs -t btrfs -f "$DEVICE_PATH"
+    sudo mkfs -t btrfs -f "$DEVICE_PATH"
 fi
 
 DEVICE=$(sudo losetup --show --find "$DEVICE_PATH")
 sudo mount -o user_subvol_rm_allowed "$DEVICE" "$IMAGES_PATH"
-USER=$(whoami)
-GROUP=$(id -gn)
 sudo chown "$USER":"$GROUP" "$IMAGES_PATH"

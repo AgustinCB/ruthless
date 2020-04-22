@@ -21,7 +21,7 @@ fn find_cgroups_path() -> Result<Option<String>, Error> {
     let mounts_content = read_to_string(MOUNTS_FILE)?;
     Ok(mounts_content
         .split('\n')
-        .find(|s| s.starts_with(CGROUP_FS))
+        .find(|s| s.contains(CGROUP_FS))
         .map(|s| s.split(' ').collect::<Vec<&str>>()[1].to_owned()))
 }
 
